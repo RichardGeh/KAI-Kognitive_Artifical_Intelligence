@@ -1,0 +1,14 @@
+Dies ist eine Testdatei für das Preview-Feature.
+
+Das System sollte die ersten 500 Zeichen dieses Textes anzeigen, bevor es den gesamten Text in die Wissensdatenbank aufnimmt.
+
+Dieser Text enthält mehrere Sätze, um zu testen, ob die Batch-Processing-Funktionalität korrekt arbeitet. Ein Hund ist ein Tier. Eine Katze ist auch ein Tier. Tiere können laufen.
+
+Das Preview-Feature ist besonders nützlich für große Dateien, bei denen der Benutzer vor der Ingestion überprüfen möchte, ob der Inhalt korrekt extrahiert wurde.
+
+Mit diesem Feature kann der Benutzer:
+1. Den Anfang der Datei sehen
+2. Die Gesamtgröße der Datei prüfen
+3. Entscheiden, ob die Ingestion fortgesetzt werden soll
+
+Dies verbessert die Benutzererfahrung erheblich und gibt dem Benutzer mehr Kontrolle über den Lernprozess von KAI.
