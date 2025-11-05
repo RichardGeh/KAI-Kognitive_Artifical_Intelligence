@@ -7,8 +7,8 @@ import kai_encoding_fix  # noqa: F401 (automatische Aktivierung beim Import)
 
 from typing import Dict
 
-from PyQt6.QtCore import Qt, QThread, pyqtSlot, QTimer
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Slot, QTimer
+from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QFileDialog,
@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence
+from PySide6.QtGui import QAction, QShortcut, QKeySequence
 
 from component_1_netzwerk import KonzeptNetzwerk
 from component_11_embedding_service import EmbeddingService
@@ -112,7 +112,7 @@ class PlanMonitor(QWidget):
         self.layout.addWidget(self.main_goal_label)
         self.layout.addWidget(self.scroll_area)
 
-    @pyqtSlot()
+    @Slot()
     def clear_goals(self):
         """Entfernt alle alten Ziele von der Anzeige."""
         self.main_goal_label.setText("Warte auf Aufgabe...")
@@ -120,12 +120,12 @@ class PlanMonitor(QWidget):
             label.deleteLater()
         self.sub_goal_labels.clear()
 
-    @pyqtSlot(str)
+    @Slot(str)
     def set_main_goal(self, text: str):
         """Setzt den Text des Hauptziels."""
         self.main_goal_label.setText(text)
 
-    @pyqtSlot(str, str)
+    @Slot(str, str)
     def add_sub_goal(self, sg_id: str, description: str):
         """Fügt ein neues Unterziel in der Anzeige hinzu."""
         if sg_id in self.sub_goal_labels:
@@ -139,7 +139,7 @@ class PlanMonitor(QWidget):
         self.sub_goal_layout.addWidget(label)
         self.sub_goal_labels[sg_id] = label
 
-    @pyqtSlot(str, str)
+    @Slot(str, str)
     def update_sub_goal_status(self, sg_id: str, status_name: str):
         """Aktualisiert den Status (Farbe, Icon) eines bestehenden Unterziels."""
         if sg_id not in self.sub_goal_labels:
@@ -364,7 +364,7 @@ class ChatInterface(QWidget):
     def clear_input(self):
         self.input_text.clear()
 
-    @pyqtSlot(str)
+    @Slot(str)
     def update_context(self, context_summary: str):
         """
         PHASE 2 (Multi-Turn): Aktualisiert die Context-Anzeige.
@@ -379,7 +379,7 @@ class ChatInterface(QWidget):
             self.context_label.setText("")
             self.context_label.setVisible(False)
 
-    @pyqtSlot(int, int, str)
+    @Slot(int, int, str)
     def update_file_progress(self, current: int, total: int, message: str):
         """
         PHASE 8 (Extended Features): Aktualisiert die Datei-Ingestion Progress Bar.
@@ -410,7 +410,7 @@ class ChatInterface(QWidget):
             QTimer.singleShot(2000, lambda: self.file_progress_bar.setVisible(False))
             QTimer.singleShot(2000, lambda: self.file_progress_label.setVisible(False))
 
-    @pyqtSlot()
+    @Slot()
     def _on_file_picker_clicked(self):
         """
         Öffnet File-Picker für Dokument-Auswahl (einzeln oder mehrere).
@@ -478,7 +478,7 @@ class InnerPictureDisplay(QWidget):
             formatted_trace = "\n".join(f"-> {step}" for step in trace_steps)
             self.trace_view.setText(formatted_trace)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def update_trace_from_string(self, trace_str: str):
         """PHASE 2: Update trace from formatted string (Working Memory)"""
         self.trace_view.setText(trace_str)
@@ -915,7 +915,7 @@ class MainWindow(QMainWindow):
             QThread.msleep(20)
             self.kai_worker.process_query(query)
 
-    @pyqtSlot(object)
+    @Slot(object)
     def on_kai_finished(self, response_obj):
         # Check for reprocessing request (from context manager)
         if response_obj.text == "__REPROCESS_QUERY__":
@@ -939,7 +939,7 @@ class MainWindow(QMainWindow):
         self.chat_interface.input_text.setEnabled(True)
         self.chat_interface.input_text.setFocus()
 
-    @pyqtSlot(str, str, int)
+    @Slot(str, str, int)
     def show_preview_confirmation_dialog(
         self, preview: str, file_name: str, char_count: int
     ):

@@ -1,0 +1,52 @@
+KAI (Konzeptueller AI Prototyp)
+Copyright 2025 Richard Gehlhaar
+
+================================================================================
+
+This project includes the following third-party dependencies:
+
+--------------------------------------------------------------------------------
+PySide6
+Copyright (C) The Qt Company Ltd.
+License: GNU Lesser General Public License v3.0 (LGPL 3.0)
+Homepage: https://www.qt.io/qt-for-python
+License Text: See LICENSES/LGPL-3.0.txt
+
+IMPORTANT: PySide6 is licensed under LGPL 3.0. This project uses PySide6 as
+a library dependency (dynamic linking via pip). You are free to replace or
+upgrade PySide6 independently. The full LGPL 3.0 license text is provided
+in the LICENSES directory.
+
+--------------------------------------------------------------------------------
+Neo4j Python Driver
+Copyright (C) Neo4j, Inc.
+License: Apache License 2.0
+Homepage: https://github.com/neo4j/neo4j-python-driver
+
+--------------------------------------------------------------------------------
+spaCy
+Copyright (C) Explosion AI GmbH
+License: MIT License
+Homepage: https://spacy.io
+
+--------------------------------------------------------------------------------
+sentence-transformers
+Copyright (C) Nils Reimers
+License: Apache License 2.0
+Homepage: https://www.sbert.net
+
+--------------------------------------------------------------------------------
+pdfplumber
+Copyright (C) Jeremy Singer-Vine
+License: MIT License
+Homepage: https://github.com/jsvine/pdfplumber
+
+--------------------------------------------------------------------------------
+python-docx
+Copyright (C) Steve Canny
+License: MIT License
+Homepage: https://github.com/python-openxml/python-docx
+
+================================================================================
+
+For a complete list of dependencies, see requirements.txt and requirements-dev.txt

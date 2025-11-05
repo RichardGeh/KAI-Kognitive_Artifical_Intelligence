@@ -11,7 +11,7 @@ Verantwortlichkeiten (REFACTORED):
 import logging
 from typing import Dict
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from component_1_netzwerk import KonzeptNetzwerk
 from component_4_goal_planner import GoalPlanner
@@ -68,30 +68,30 @@ logger = logging.getLogger(__name__)
 
 class KaiSignals(QObject):
     """
-    PyQt6 Signals für asynchrone UI-Kommunikation.
+    PySide6 Signals für asynchrone UI-Kommunikation.
 
     Diese bleiben zentral im Worker, da sie UI-Koordination betreffen.
     """
 
-    clear_goals = pyqtSignal()
-    set_main_goal = pyqtSignal(str)
-    add_sub_goal = pyqtSignal(str, str)
-    update_sub_goal_status = pyqtSignal(str, str)
-    finished = pyqtSignal(KaiResponse)
-    needs_saving = pyqtSignal()
-    inner_picture_update = pyqtSignal(str)  # Reasoning-Trace
-    context_update = pyqtSignal(str)  # Context-Anzeige in UI
-    proof_tree_update = pyqtSignal(object)  # ProofTree-Visualisierung
-    episodic_data_update = pyqtSignal(
+    clear_goals = Signal()
+    set_main_goal = Signal(str)
+    add_sub_goal = Signal(str, str)
+    update_sub_goal_status = Signal(str, str)
+    finished = Signal(KaiResponse)
+    needs_saving = Signal()
+    inner_picture_update = Signal(str)  # Reasoning-Trace
+    context_update = Signal(str)  # Context-Anzeige in UI
+    proof_tree_update = Signal(object)  # ProofTree-Visualisierung
+    episodic_data_update = Signal(
         list
     )  # Episodische-Gedächtnis-Daten (Liste von Episoden)
-    file_progress_update = pyqtSignal(
+    file_progress_update = Signal(
         int, int, str
     )  # (current, total, message) für Datei-Ingestion
-    preview_confirmation_needed = pyqtSignal(
+    preview_confirmation_needed = Signal(
         str, str, int
     )  # (preview, file_name, char_count) - blockiert Worker
-    preview_confirmation_response = pyqtSignal(bool)  # (confirmed) - User-Antwort
+    preview_confirmation_response = Signal(bool)  # (confirmed) - User-Antwort
 
 
 class KaiWorker(QObject):

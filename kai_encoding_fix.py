@@ -11,7 +11,7 @@ Problem:
 Lösung:
 - Erzwingt UTF-8 für stdout/stderr mit errors='replace' Fallback
 - Automatische Anwendung beim Import
-- Kompatibel mit Logging-System und PyQt6
+- Kompatibel mit Logging-System und PySide6
 
 Verwendung:
     # Am Anfang jeder Entry-Point-Datei:

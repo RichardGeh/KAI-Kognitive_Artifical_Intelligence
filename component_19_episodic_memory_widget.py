@@ -3,7 +3,7 @@ component_19_episodic_memory_widget.py
 
 Interactive Episodic Memory Visualization Widget for KAI
 
-Provides a PyQt6-based timeline visualization for episodic memory queries
+Provides a PySide6-based timeline visualization for episodic memory queries
 with support for filtering, detailed inspection, and export functionality.
 
 Features:
@@ -15,7 +15,7 @@ Features:
 - Timeline visualization export
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -31,8 +31,8 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QGroupBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QColor, QFont
 from typing import List, Dict, Any
 import json
 from datetime import datetime
@@ -47,7 +47,7 @@ class EpisodicMemoryWidget(QWidget):
     """
 
     # Signal emitted when user requests episodes
-    episodes_requested = pyqtSignal(str, str)  # (topic, episode_type)
+    episodes_requested = Signal(str, str)  # (topic, episode_type)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -192,7 +192,7 @@ class EpisodicMemoryWidget(QWidget):
         """
         )
 
-    @pyqtSlot(list)
+    @Slot(list)
     def update_episodes(self, episodes: List[Dict[str, Any]]):
         """
         Aktualisiert die angezeigten Episoden.
@@ -524,7 +524,7 @@ class EpisodicMemoryWidget(QWidget):
         """
         # Placeholder für zukünftige Implementierung
 
-    @pyqtSlot()
+    @Slot()
     def clear(self):
         """Löscht alle angezeigten Episoden"""
         self.episodes.clear()

@@ -1,7 +1,7 @@
 """
 logging_ui.py
 
-PyQt6-basierte UI-Komponenten für Logging-Konfiguration und -Anzeige.
+PySide6-basierte UI-Komponenten für Logging-Konfiguration und -Anzeige.
 
 Features:
 - Logging-Settings-Dialog: Konfiguration von Log-Levels für verschiedene Handler
@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import List
 from collections import deque
 
-from PyQt6.QtCore import QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QLineEdit,
 )
-from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat
+from PySide6.QtGui import QTextCursor, QColor, QTextCharFormat
 
 from component_15_logging_config import (
     setup_logging,
@@ -50,7 +50,7 @@ class LoggingSettingsDialog(QDialog):
     - Performance-Logging (an/aus)
     """
 
-    settings_changed = pyqtSignal(dict)  # Signal wenn Einstellungen geändert wurden
+    settings_changed = Signal(dict)  # Signal wenn Einstellungen geändert wurden
 
     LOG_LEVELS = {
         "DEBUG": logging.DEBUG,
@@ -484,7 +484,7 @@ def show_log_viewer(parent=None):
 
 if __name__ == "__main__":
     """Test-Code für die UI-Komponenten"""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
     import sys
 
     from component_15_logging_config import setup_logging, get_logger

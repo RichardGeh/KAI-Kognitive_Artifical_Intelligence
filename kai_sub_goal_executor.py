@@ -1239,7 +1239,7 @@ class FileReaderStrategy(SubGoalStrategy):
 
             # WICHTIG: Gib dem UI-Thread Zeit zum Aktualisieren
             # Das verhindert UI-Freezing während der Batch-Verarbeitung
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             QApplication.processEvents()
 

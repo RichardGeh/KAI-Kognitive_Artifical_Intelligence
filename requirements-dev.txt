@@ -4,7 +4,7 @@
 # Core dependencies (also needed for production)
 neo4j>=5.0.0
 spacy>=3.7.0
-PyQt6>=6.6.0
+PySide6>=6.6.0
 sentence-transformers>=2.2.0
 
 # Testing framework

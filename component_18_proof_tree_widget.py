@@ -3,7 +3,7 @@ component_18_proof_tree_widget.py
 
 Interactive Proof Tree Visualization Widget for KAI
 
-Provides a PyQt6-based graphical tree visualization for proof explanations
+Provides a PySide6-based graphical tree visualization for proof explanations
 with support for interactive exploration, export, and detailed inspection.
 
 Features:
@@ -16,7 +16,7 @@ Features:
 - Export to JSON and image
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -31,8 +31,8 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QMenu,
 )
-from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal, QTimer
-from PyQt6.QtGui import (
+from PySide6.QtCore import Qt, QPointF, QRectF, Signal, QTimer
+from PySide6.QtGui import (
     QPen,
     QBrush,
     QColor,
@@ -394,7 +394,7 @@ class ProofTreeWidget(QWidget):
         node_selected: Emitted when a node is clicked (ProofStep)
     """
 
-    node_selected = pyqtSignal(object)  # ProofStep
+    node_selected = Signal(object)  # ProofStep
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1282,7 +1282,7 @@ class ComparisonProofTreeWidget(QWidget):
         layout.addWidget(control_bar)
 
         # Splitter with two tree widgets
-        from PyQt6.QtWidgets import QSplitter
+        from PySide6.QtWidgets import QSplitter
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -1348,7 +1348,7 @@ class ComparisonProofTreeWidget(QWidget):
 
     def _export_both_trees(self):
         """Export both trees side-by-side as single image"""
-        from PyQt6.QtGui import QPainter
+        from PySide6.QtGui import QPainter
 
         # Get scenes
         scene_a = self.tree_widget_a.scene

@@ -14,8 +14,8 @@ import sys
 import traceback
 from typing import List, Dict
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -62,12 +62,12 @@ class TestRunnerThread(QThread):
         output_line: Emitted für jede Ausgabezeile (line)
     """
 
-    test_started = pyqtSignal(str)
-    test_passed = pyqtSignal(str)
-    test_failed = pyqtSignal(str, str)  # test_name, error_message
-    progress_updated = pyqtSignal(int, int, float)  # current, total, percentage
-    finished_all = pyqtSignal(int, int, int)  # passed, failed, total
-    output_line = pyqtSignal(str)  # Ausgabezeile
+    test_started = Signal(str)
+    test_passed = Signal(str)
+    test_failed = Signal(str, str)  # test_name, error_message
+    progress_updated = Signal(int, int, float)  # current, total, percentage
+    finished_all = Signal(int, int, int)  # passed, failed, total
+    output_line = Signal(str)  # Ausgabezeile
 
     def __init__(self, selected_tests: List[tuple]):
         super().__init__()
@@ -215,7 +215,7 @@ class TestRunnerThread(QThread):
 class KaiSettingsTab(QWidget):
     """Tab für allgemeine KAI-Einstellungen (Wortverwendungs-Tracking, etc.)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -390,7 +390,7 @@ class KaiSettingsTab(QWidget):
 class LoggingSettingsTab(QWidget):
     """Tab für Logging-Einstellungen (aus logging_ui.py übernommen)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     LOG_LEVELS = {
         "DEBUG": logging.DEBUG,
@@ -522,7 +522,7 @@ class LoggingSettingsTab(QWidget):
 class Neo4jConnectionTab(QWidget):
     """Tab für Neo4j-Verbindungseinstellungen"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -634,7 +634,7 @@ class Neo4jConnectionTab(QWidget):
 class ConfidenceThresholdsTab(QWidget):
     """Tab für Konfidenz-Schwellenwerte (GoalPlanner)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -771,7 +771,7 @@ class ConfidenceThresholdsTab(QWidget):
 class PatternMatchingTab(QWidget):
     """Tab für Pattern-Matching Thresholds"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -919,8 +919,8 @@ class PatternMatchingTab(QWidget):
 class AppearanceTab(QWidget):
     """Tab für UI-Einstellungen (Theme, etc.)"""
 
-    settings_changed = pyqtSignal(dict)
-    theme_changed = pyqtSignal(str)  # Spezial-Signal für Theme-Änderung
+    settings_changed = Signal(dict)
+    theme_changed = Signal(str)  # Spezial-Signal für Theme-Änderung
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1220,7 +1220,7 @@ class TestRunnerTab(QWidget):
 
     def get_bold_font(self):
         """Gibt eine fette Schrift zurück"""
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         font = QFont()
         font.setBold(True)
@@ -1229,7 +1229,7 @@ class TestRunnerTab(QWidget):
 
     def get_semi_bold_font(self):
         """Gibt eine halbfette Schrift zurück"""
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         font = QFont()
         font.setWeight(QFont.Weight.DemiBold)
@@ -1354,12 +1354,12 @@ class TestRunnerTab(QWidget):
             self.test_runner_thread.stop()
             self.progress_label.setText("⏹ Gestoppt...")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_test_started(self, test_name: str):
         """Wird aufgerufen wenn ein Test startet"""
         self.progress_label.setText(f"⏳ Läuft: {test_name}")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_test_passed(self, test_name: str):
         """Wird aufgerufen wenn ein Test erfolgreich ist"""
         # Finde Item und update Status
@@ -1369,7 +1369,7 @@ class TestRunnerTab(QWidget):
                 item.setForeground(1, Qt.GlobalColor.green)
                 break
 
-    @pyqtSlot(str, str)
+    @Slot(str, str)
     def on_test_failed(self, test_name: str, error_msg: str):
         """Wird aufgerufen wenn ein Test fehlschlägt"""
         # Finde Item und update Status
@@ -1384,7 +1384,7 @@ class TestRunnerTab(QWidget):
         list_item.setToolTip(error_msg)
         self.failed_tests_list.addItem(list_item)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_output_line(self, line: str):
         """Wird aufgerufen für jede Ausgabezeile"""
         self.output_console.append(line)
@@ -1392,7 +1392,7 @@ class TestRunnerTab(QWidget):
         scrollbar = self.output_console.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    @pyqtSlot(int, int, float)
+    @Slot(int, int, float)
     def on_progress_updated(self, current: int, total: int, percentage: float):
         """Wird aufgerufen bei Fortschritt"""
         # Grobe Schätzung: Durchschnittlich 6 Tests pro Klasse
@@ -1402,7 +1402,7 @@ class TestRunnerTab(QWidget):
         self.progress_bar.setValue(int(actual_percentage))
         self.progress_label.setText(f"🔄 {current} Tests durchlaufen...")
 
-    @pyqtSlot(int, int, int)
+    @Slot(int, int, int)
     def on_all_tests_finished(self, passed: int, failed: int, total: int):
         """Wird aufgerufen wenn alle Tests abgeschlossen sind"""
         self.run_button.setEnabled(True)
@@ -3027,8 +3027,8 @@ import sys
 import traceback
 from typing import List, Dict
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -3075,12 +3075,12 @@ class TestRunnerThread(QThread):
         output_line: Emitted für jede Ausgabezeile (line)
     """
 
-    test_started = pyqtSignal(str)
-    test_passed = pyqtSignal(str)
-    test_failed = pyqtSignal(str, str)  # test_name, error_message
-    progress_updated = pyqtSignal(int, int, float)  # current, total, percentage
-    finished_all = pyqtSignal(int, int, int)  # passed, failed, total
-    output_line = pyqtSignal(str)  # Ausgabezeile
+    test_started = Signal(str)
+    test_passed = Signal(str)
+    test_failed = Signal(str, str)  # test_name, error_message
+    progress_updated = Signal(int, int, float)  # current, total, percentage
+    finished_all = Signal(int, int, int)  # passed, failed, total
+    output_line = Signal(str)  # Ausgabezeile
 
     def __init__(self, selected_tests: List[tuple]):
         super().__init__()
@@ -3228,7 +3228,7 @@ class TestRunnerThread(QThread):
 class KaiSettingsTab(QWidget):
     """Tab für allgemeine KAI-Einstellungen (Wortverwendungs-Tracking, etc.)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3403,7 +3403,7 @@ class KaiSettingsTab(QWidget):
 class LoggingSettingsTab(QWidget):
     """Tab für Logging-Einstellungen (aus logging_ui.py übernommen)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     LOG_LEVELS = {
         "DEBUG": logging.DEBUG,
@@ -3535,7 +3535,7 @@ class LoggingSettingsTab(QWidget):
 class Neo4jConnectionTab(QWidget):
     """Tab für Neo4j-Verbindungseinstellungen"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3647,7 +3647,7 @@ class Neo4jConnectionTab(QWidget):
 class ConfidenceThresholdsTab(QWidget):
     """Tab für Konfidenz-Schwellenwerte (GoalPlanner)"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3784,7 +3784,7 @@ class ConfidenceThresholdsTab(QWidget):
 class PatternMatchingTab(QWidget):
     """Tab für Pattern-Matching Thresholds"""
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3932,8 +3932,8 @@ class PatternMatchingTab(QWidget):
 class AppearanceTab(QWidget):
     """Tab für UI-Einstellungen (Theme, etc.)"""
 
-    settings_changed = pyqtSignal(dict)
-    theme_changed = pyqtSignal(str)  # Spezial-Signal für Theme-Änderung
+    settings_changed = Signal(dict)
+    theme_changed = Signal(str)  # Spezial-Signal für Theme-Änderung
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5142,7 +5142,7 @@ class TestRunnerTab(QWidget):
             elif checked_count == len(file_tests):
                 file_cb.setChecked(True)
             else:
-                # Teilweise ausgewählt - setze auf checked (PyQt6 hat kein PartiallyChecked für normale Checkboxen)
+                # Teilweise ausgewählt - setze auf checked (PySide6 hat kein PartiallyChecked für normale Checkboxen)
                 file_cb.setChecked(True)
             file_cb.blockSignals(False)
 
@@ -5178,24 +5178,24 @@ class TestRunnerTab(QWidget):
             self.test_runner_thread.stop()
             self.progress_label.setText("⏹ Gestoppt...")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_test_started(self, test_name: str):
         """Wird aufgerufen wenn ein Test startet"""
         self.progress_label.setText(f"⏳ Läuft: {test_name}")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_test_passed(self, test_name: str):
         """Wird aufgerufen wenn ein Test erfolgreich ist"""
         pass  # Wird im Progress-Update angezeigt
 
-    @pyqtSlot(str, str)
+    @Slot(str, str)
     def on_test_failed(self, test_name: str, error_msg: str):
         """Wird aufgerufen wenn ein Test fehlschlägt"""
         item = QListWidgetItem(f"[ERROR] {test_name}")
         item.setToolTip(error_msg)
         self.failed_tests_list.addItem(item)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_output_line(self, line: str):
         """Wird aufgerufen für jede Ausgabezeile"""
         self.output_console.append(line)
@@ -5203,7 +5203,7 @@ class TestRunnerTab(QWidget):
         scrollbar = self.output_console.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    @pyqtSlot(int, int, float)
+    @Slot(int, int, float)
     def on_progress_updated(self, current: int, total: int, percentage: float):
         """Wird aufgerufen bei Fortschritt"""
         # Wir wissen die Gesamtzahl nicht vorher - berechne basierend auf aktuellen Werten
@@ -5214,7 +5214,7 @@ class TestRunnerTab(QWidget):
         self.progress_bar.setValue(int(actual_percentage))
         self.progress_label.setText(f"🔄 {current} Tests durchlaufen...")
 
-    @pyqtSlot(int, int, int)
+    @Slot(int, int, int)
     def on_all_tests_finished(self, passed: int, failed: int, total: int):
         """Wird aufgerufen wenn alle Tests abgeschlossen sind"""
         self.run_button.setEnabled(True)
@@ -5247,7 +5247,7 @@ class SettingsDialog(QDialog):
     - Tests
     """
 
-    settings_changed = pyqtSignal(dict)
+    settings_changed = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5344,7 +5344,7 @@ def show_settings_dialog(parent=None):
 
 if __name__ == "__main__":
     """Test-Code"""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 

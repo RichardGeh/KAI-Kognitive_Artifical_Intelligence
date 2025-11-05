@@ -1,11 +1,11 @@
 """
 context_visualization_widget.py
 
-PyQt6 Widget zur Visualisierung des Working Memory Context-Stacks.
+PySide6 Widget zur Visualisierung des Working Memory Context-Stacks.
 Zeigt hierarchische Tree-View der verschachtelten Kontexte mit Details.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QSplitter,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QBrush
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QBrush
 from typing import Optional
 from datetime import datetime
 
@@ -49,7 +49,7 @@ class ContextVisualizationWidget(QWidget):
     """
 
     # Signal um Working Memory von außen zu setzen
-    memory_updated = pyqtSignal()
+    memory_updated = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -356,7 +356,7 @@ class ContextVisualizationWidget(QWidget):
 
 if __name__ == "__main__":
     """Demo/Test der Context-Visualisierung"""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
     import sys
 
     app = QApplication(sys.argv)
