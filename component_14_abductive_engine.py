@@ -924,7 +924,7 @@ class AbductiveEngine:
             parts.append("")
 
         if hypothesis.reasoning_trace:
-            parts.append(f"**Reasoning Trace:**")
+            parts.append("**Reasoning Trace:**")
             parts.append(f"  {hypothesis.reasoning_trace}")
             parts.append("")
 

@@ -310,7 +310,7 @@ class KaiContextManager:
                         # Emitiere Lern-Bestätigung nicht, gehe direkt zur Retry
                         self.signals.finished.emit(
                             KaiResponse(
-                                text=f"Danke, das habe ich gelernt. Lass mich die ursprüngliche Frage nochmal versuchen..."
+                                text="Danke, das habe ich gelernt. Lass mich die ursprüngliche Frage nochmal versuchen..."
                             )
                         )
                         # Triggere Neuverarbeitung durch separaten Aufruf

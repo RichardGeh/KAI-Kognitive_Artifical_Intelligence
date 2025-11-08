@@ -12,37 +12,36 @@ import logging
 import subprocess
 import sys
 import traceback
-from typing import List, Dict
+from typing import Dict, List
 
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QDoubleSpinBox,
+    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QPushButton,
-    QTextEdit,
-    QGroupBox,
-    QCheckBox,
-    QWidget,
-    QTabWidget,
-    QProgressBar,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QProgressBar,
+    QPushButton,
     QScrollArea,
-    QFrame,
-    QLineEdit,
     QSlider,
-    QDoubleSpinBox,
     QSpinBox,
+    QTabWidget,
+    QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from component_15_logging_config import setup_logging, LOG_DIR, PERFORMANCE_LOG_FILE
+from component_15_logging_config import LOG_DIR, PERFORMANCE_LOG_FILE, setup_logging
 from kai_config import get_config
-
 
 # ============================================================================
 # TEST RUNNER THREAD
@@ -3025,37 +3024,36 @@ import logging
 import subprocess
 import sys
 import traceback
-from typing import List, Dict
+from typing import Dict, List
 
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QDoubleSpinBox,
+    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QPushButton,
-    QTextEdit,
-    QGroupBox,
-    QCheckBox,
-    QWidget,
-    QTabWidget,
-    QProgressBar,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QProgressBar,
+    QPushButton,
     QScrollArea,
-    QFrame,
-    QLineEdit,
     QSlider,
-    QDoubleSpinBox,
     QSpinBox,
+    QTabWidget,
+    QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from component_15_logging_config import setup_logging, LOG_DIR, PERFORMANCE_LOG_FILE
+from component_15_logging_config import LOG_DIR, PERFORMANCE_LOG_FILE, setup_logging
 from kai_config import get_config
-
 
 # ============================================================================
 # TEST RUNNER THREAD

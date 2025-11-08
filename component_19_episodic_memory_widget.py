@@ -263,7 +263,7 @@ class EpisodicMemoryWidget(QWidget):
                 try:
                     dt = datetime.fromtimestamp(timestamp / 1000.0)
                     time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-                except:
+                except (ValueError, OSError):
                     time_str = str(timestamp)
             else:
                 time_str = "Unbekannt"
@@ -388,19 +388,19 @@ class EpisodicMemoryWidget(QWidget):
                 dt = datetime.fromtimestamp(timestamp / 1000.0)
                 time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
                 details.append(f"<p><b>Zeitpunkt:</b> {time_str}</p>")
-            except:
+            except (ValueError, OSError):
                 pass
 
         # Content oder Query
         if "content" in episode:
             content = episode["content"]
-            details.append(f"<p><b>Inhalt:</b></p>")
+            details.append("<p><b>Inhalt:</b></p>")
             details.append(
                 f"<blockquote style='background-color: #ecf0f1; padding: 10px; border-left: 4px solid #3498db;'>{content}</blockquote>"
             )
         elif "query" in episode:
             query = episode["query"]
-            details.append(f"<p><b>Abfrage:</b></p>")
+            details.append("<p><b>Abfrage:</b></p>")
             details.append(
                 f"<blockquote style='background-color: #ecf0f1; padding: 10px; border-left: 4px solid #3498db;'>{query}</blockquote>"
             )
@@ -460,7 +460,7 @@ class EpisodicMemoryWidget(QWidget):
                         json.dumps(metadata_dict, indent=2, ensure_ascii=False)
                     )
                     details.append("</pre>")
-            except:
+            except (TypeError, ValueError, AttributeError):
                 pass
 
         # Anzeigen

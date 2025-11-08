@@ -597,7 +597,7 @@ class MeaningPointExtractor:
                         has_noun = any(token.pos_ == "NOUN" for token in object_tokens)
                         if has_noun:
                             is_likely_noun = True
-                except:
+                except Exception:
                     pass  # Fallback auf Heuristik oben
 
                 if is_likely_noun:

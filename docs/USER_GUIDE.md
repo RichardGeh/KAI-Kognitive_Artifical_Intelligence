@@ -707,8 +707,125 @@ cat logs/error.log
 
 ---
 
+## Neue UI-Features (v2.1)
+
+### Feedback-Buttons
+
+**Location**: Hauptfenster, unter Antworttext
+
+KAI lernt jetzt aus deinem Feedback! Nach jeder Antwort kannst du bewerten:
+
+**Buttons:**
+- ✅ **Correct**: Antwort war richtig
+- ❌ **Incorrect**: Antwort war falsch
+- ❓ **Unsure**: Nicht sicher / Teilweise richtig
+- 💬 **Custom Feedback**: Detailliertes Textfeedback
+
+**Was passiert:**
+1. Feedback wird mit Query und verwendeter Strategy gespeichert
+2. **Meta-Learning** lernt, welche Strategy für welche Fragen am besten funktioniert
+3. **Success Rate** der Strategien wird aktualisiert
+4. Zukünftige Queries verwenden bessere Strategien
+
+**Integration:**
+- Feedback-Daten persistent in Neo4j gespeichert
+- Real-time Strategy Performance Updates
+- Epsilon-Greedy Exploration (10% testing neuer Strategien)
+
+**Beispiel:**
+```
+User: "Was ist ein Hund?"
+KAI: "Ein Hund ist ein Tier..." (Strategy: resonance)
+User: [Klickt ✅ Correct]
+
+→ Strategy "resonance" erhält +1 success_count
+→ Success Rate steigt von 85% → 86%
+→ Zukünftige ähnliche Fragen bevorzugen "resonance"
+```
+
+### Resonance View (geplant)
+
+**Status**: 🔜 Kommend in v2.2
+
+Visualisierung der Cognitive Resonance Aktivierung:
+
+**Geplante Features:**
+- **Activation Wave Animation**: Zeigt, wie Aktivierung sich ausbreitet
+- **Resonance Points Highlighting**: Markiert zentrale Konzepte (⭐)
+- **Reasoning Path Display**: Visualisiert multiple Pfade
+- **Interactive Exploration**: Klicke auf Konzepte für Details
+- **Wave-by-Wave Replay**: Schrittweise Ansicht der Ausbreitung
+
+**Mockup:**
+```
+┌─────────────────────────────────────┐
+│ Resonance View                      │
+├─────────────────────────────────────┤
+│  Wave 0:  hund [1.000] (START)      │
+│  Wave 1:  tier [0.630] ⭐ (3 paths) │
+│           säugetier [0.490]         │
+│           haustier [0.441] ⭐        │
+│  Wave 2:  lebewesen [0.315]         │
+│           fleischfresser [0.343]    │
+│                                     │
+│  [Play] [Pause] [Step] [Reset]     │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Performance-Tipps (v2.1)
+
+### Caching nutzen
+
+KAI verwendet jetzt **automatisches Caching** für bessere Performance:
+
+**Activation Maps Cache**:
+- TTL: 10 Minuten
+- Speedup: >10x für wiederholte Queries
+- Automatisch aktiviert bei Resonance Reasoning
+
+**Strategy Stats Cache**:
+- TTL: 10 Minuten
+- Speedup: ~2x für Strategy-Selection
+- Automatisch aktiviert bei Meta-Learning
+
+**Tipp**: WiederkehrendeQueries profitieren massiv vom Caching!
+
+### Hyperparameter-Tuning
+
+**AdaptiveResonanceEngine** passt sich automatisch an:
+- **Kleine Graphen** (<1k Knoten): Liberal (mehr Exploration)
+- **Mittlere Graphen** (1k-10k): Balanced
+- **Große Graphen** (>10k): Conservative (mehr Pruning)
+
+**Manuelles Tuning** (fortgeschritten):
+```python
+from component_44_resonance_engine import ResonanceEngine
+
+engine = ResonanceEngine(netzwerk)
+engine.set_hyperparameters(
+    activation_threshold=0.35,  # Höher = weniger Konzepte
+    decay_factor=0.75,          # Höher = stärkere Ausbreitung
+    resonance_boost=0.6,        # Höher = stärkere Resonanz
+    max_waves=6,                # Mehr = tiefere Exploration
+    max_concepts_per_wave=150   # Mehr = breite Exploration
+)
+```
+
+### Neo4j Performance
+
+**Neue Indexes** (automatisch erstellt):
+- `wort_lemma_index`: Schnellere Wortsuche
+- `relation_confidence_index`: Schnellere Confidence-Filter
+- `relation_context_index`: Schnellere Context-Filter
+
+**Speedup**: 2-5x für relation-basierte Queries
+
+---
+
 Für detaillierte technische Informationen siehe `CLAUDE.md` und `DEVELOPER_GUIDE.md`
 
 ---
 
-*Last Updated: 2025-10-26*
+*Last Updated: 2025-11-08*

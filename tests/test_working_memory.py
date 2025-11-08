@@ -598,7 +598,7 @@ class TestComplexScenarios:
         memory = WorkingMemory()
 
         # Versuch 1: Frage scheitert
-        attempt1 = memory.push_context(
+        _ = memory.push_context(
             ContextType.QUESTION, "Was ist eine Katze?", entities=["katze"]
         )
         memory.add_reasoning_state(
@@ -609,7 +609,7 @@ class TestComplexScenarios:
         )
 
         # System bittet um Beispiel
-        learning_frame = memory.push_context(
+        _ = memory.push_context(
             ContextType.PATTERN_LEARNING,
             "Eine Katze ist ein Tier",
             entities=["katze", "tier"],

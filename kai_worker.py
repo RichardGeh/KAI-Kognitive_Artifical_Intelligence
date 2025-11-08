@@ -452,12 +452,12 @@ class KaiWorker(QObject):
             if "object" in intent.arguments:
                 entities.append(intent.arguments["object"])
 
-            frame_id = self.working_memory.push_context(
+            _ = self.working_memory.push_context(
                 context_type=context_type,
                 query=intent.text_span or plan.description,
                 entities=entities,
                 metadata={"plan_description": plan.description},
-            )
+            )  # frame_id unused
 
             # Initialer Reasoning-State
             self.working_memory.add_reasoning_state(
@@ -557,7 +557,7 @@ class KaiWorker(QObject):
             # Bereinige Working Memory bei Fehler
             try:
                 self.working_memory.pop_context()
-            except:
+            except Exception:
                 pass
 
             return KaiResponse(text=user_friendly_msg)
@@ -569,7 +569,7 @@ class KaiWorker(QObject):
             # Bereinige Working Memory bei Fehler
             try:
                 self.working_memory.pop_context()
-            except:
+            except Exception:
                 pass
 
             return KaiResponse(

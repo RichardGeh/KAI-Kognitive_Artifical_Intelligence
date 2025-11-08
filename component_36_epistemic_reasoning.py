@@ -465,7 +465,9 @@ class EpistemicReasoner:
         Generic: Works for any property
         """
         if observer_fn is None:
-            observer_fn = lambda obs, subj: obs != subj
+
+            def observer_fn(obs, subj):
+                return obs != subj
 
         count = 0
         for observer_id in self.state.active_agents:
@@ -539,12 +541,12 @@ class EpistemicReasoner:
 
             if not self.state.active_agents:
                 logger.info(
-                    f"All agents inactive, terminating", extra={"turn": iteration}
+                    "All agents inactive, terminating", extra={"turn": iteration}
                 )
                 break
 
         logger.info(
-            f"Solve complete",
+            "Solve complete",
             extra={
                 "turns_with_actions": len(actions_by_turn),
                 "total_turns": self.state.turn,
@@ -667,7 +669,7 @@ def create_blue_eyes_puzzle(
     Alles ist generisch durch Rules/Constraints definiert.
     """
     logger.info(
-        f"Setting up Blue Eyes Puzzle",
+        "Setting up Blue Eyes Puzzle",
         extra={"num_people": num_people, "num_blue_eyes": num_blue_eyes},
     )
 
@@ -764,16 +766,13 @@ def create_blue_eyes_puzzle(
     # Solve
     solution = reasoner.solve(max_iterations=num_blue_eyes + 5)
 
-    logger.info(f"Blue Eyes Puzzle solved", extra={"solution": solution})
+    logger.info("Blue Eyes Puzzle solved", extra={"solution": solution})
 
     return solution
 
 
 if __name__ == "__main__":
     print("\n=== Generic Epistemic Reasoning System Test ===\n")
-
-    from component_1_netzwerk import KonzeptNetzwerk
-    from component_35_epistemic_engine import EpistemicEngine
 
     netzwerk = KonzeptNetzwerk()
     engine = EpistemicEngine(netzwerk)

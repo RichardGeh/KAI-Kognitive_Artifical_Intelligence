@@ -217,12 +217,12 @@ class RegexValidator:
             output = "[OK] Regex-Muster ist gültig!\n\n"
 
             if details:
-                output += f"**Details:**\n"
+                output += "**Details:**\n"
                 output += f"  - Capture-Groups: {details.get('capture_groups', 0)}\n"
 
                 warnings = details.get("warnings", [])
                 if warnings:
-                    output += f"\n**Warnungen:**\n"
+                    output += "\n**Warnungen:**\n"
                     for warning in warnings:
                         output += f"  {warning}\n"
 

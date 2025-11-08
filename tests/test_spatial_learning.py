@@ -14,7 +14,6 @@ Tests cover:
 
 from typing import List
 
-
 from component_42_spatial_reasoning import (
     Position,
     SpatialRelation,
@@ -129,7 +128,6 @@ class TestSpatialPatternLearning:
             SpatialRelation("B", "D", SpatialRelationType.NORTH_OF, confidence=1.0),
         ]
 
-
         assert len(config) == 4
 
     def test_learn_adjacency_pattern(self):
@@ -140,7 +138,6 @@ class TestSpatialPatternLearning:
             SpatialRelation("B", "C", SpatialRelationType.ADJACENT_TO, confidence=1.0),
             SpatialRelation("A", "C", SpatialRelationType.ADJACENT_TO, confidence=1.0),
         ]
-
 
         # All relations are symmetric
         assert all(rel.relation_type.is_symmetric for rel in config)

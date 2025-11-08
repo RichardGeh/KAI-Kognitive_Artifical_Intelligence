@@ -45,11 +45,27 @@ except ImportError:
 
 # Import Resonance Engine
 try:
-    pass
+    from component_44_resonance_engine import AdaptiveResonanceEngine
 
     RESONANCE_ENGINE_AVAILABLE = True
 except ImportError:
     RESONANCE_ENGINE_AVAILABLE = False
+
+# Import Meta-Learning Engine
+try:
+    pass
+
+    META_LEARNING_AVAILABLE = True
+except ImportError:
+    META_LEARNING_AVAILABLE = False
+
+# Import Self-Evaluator
+try:
+    pass
+
+    SELF_EVALUATION_AVAILABLE = True
+except ImportError:
+    SELF_EVALUATION_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +147,8 @@ class ReasoningOrchestrator:
         combinatorial_reasoner=None,
         spatial_reasoner=None,
         resonance_engine=None,
+        meta_learning_engine=None,
+        self_evaluator=None,
         config_path: Optional[str] = None,
     ):
         """
@@ -147,6 +165,8 @@ class ReasoningOrchestrator:
             combinatorial_reasoner: CombinatorialReasoner (optional)
             spatial_reasoner: SpatialReasoner (optional)
             resonance_engine: ResonanceEngine (optional)
+            meta_learning_engine: MetaLearningEngine (optional)
+            self_evaluator: SelfEvaluator (optional)
             config_path: Path to YAML configuration file (optional)
         """
         self.netzwerk = netzwerk
@@ -159,6 +179,8 @@ class ReasoningOrchestrator:
         self.combinatorial_reasoner = combinatorial_reasoner
         self.spatial_reasoner = spatial_reasoner
         self.resonance_engine = resonance_engine
+        self.meta_learning_engine = meta_learning_engine
+        self.self_evaluator = self_evaluator
 
         # Default Configuration
         self.enable_hybrid = True  # Combine Logic + Probabilistic
@@ -387,6 +409,318 @@ class ReasoningOrchestrator:
 
         logger.info("[Hybrid Reasoning] [X] No strategy succeeded")
         return None
+
+    def query_with_meta_learning(
+        self,
+        topic: str,
+        relation_type: str = "IS_A",
+        query_text: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        max_retries: int = 3,
+    ) -> Optional[AggregatedResult]:
+        """
+        Meta-Learning-basierte Strategy-Auswahl und Reasoning.
+
+        Phase 4.1 Integration:
+        1. MetaLearningEngine wählt beste Strategy basierend auf Query-Pattern
+        2. Falls Resonance gewählt:
+           - AdaptiveResonanceEngine mit auto-tuning
+           - Self-Evaluation des Resultats
+           - Fallback bei low confidence
+        3. Alle Strategies werden für Meta-Learning getrackt
+
+        Args:
+            topic: Das Reasoning-Topic
+            relation_type: Typ der Relation (IS_A, HAS_PROPERTY, etc.)
+            query_text: Optional Query-Text für besseres Pattern-Matching
+            context: Optional Context-Dict
+            max_retries: Maximum Fallback-Versuche bei low confidence
+
+        Returns:
+            AggregatedResult oder None
+        """
+        if not self.meta_learning_engine:
+            logger.warning(
+                "[Meta-Learning] MetaLearningEngine not available, falling back to hybrid reasoning"
+            )
+            return self.query_with_hybrid_reasoning(topic, relation_type)
+
+        logger.info(f"[Meta-Learning] Query: {topic} ({relation_type})")
+
+        # Prepare context
+        if context is None:
+            context = {}
+        context["topic"] = topic
+        context["relation_type"] = relation_type
+
+        # Use query_text or construct from topic
+        query_for_ml = query_text or f"Was ist ein {topic}?"
+
+        # Track attempted strategies to avoid infinite loops
+        attempted_strategies = []
+        retry_count = 0
+
+        while retry_count < max_retries:
+            # 1. Meta-Learning: Select best strategy
+            available_strategies = self._get_available_strategy_names(
+                exclude=attempted_strategies
+            )
+
+            if not available_strategies:
+                logger.warning("[Meta-Learning] No more strategies available for retry")
+                break
+
+            selected_strategy, ml_confidence = (
+                self.meta_learning_engine.select_best_strategy(
+                    query=query_for_ml,
+                    context=context,
+                    available_strategies=available_strategies,
+                )
+            )
+
+            logger.info(
+                f"[Meta-Learning] Selected strategy: '{selected_strategy}' "
+                f"(ML confidence: {ml_confidence:.2f}, attempt {retry_count + 1}/{max_retries})"
+            )
+
+            attempted_strategies.append(selected_strategy)
+
+            # Track start time for performance monitoring
+            import time
+
+            start_time = time.time()
+
+            # 2. Execute selected strategy
+            result = None
+
+            if selected_strategy == "resonance":
+                result = self._execute_resonance_strategy(
+                    topic, relation_type, context, query_for_ml
+                )
+            else:
+                # Execute via existing hybrid reasoning for other strategies
+                strategy_enum = self._map_strategy_name_to_enum(selected_strategy)
+                if strategy_enum:
+                    result = self._execute_single_strategy(
+                        topic, relation_type, strategy_enum
+                    )
+
+            response_time = time.time() - start_time
+
+            # 3. Self-Evaluation (if available and result exists)
+            if result and self.self_evaluator:
+                eval_result = self._evaluate_result_quality(
+                    result, query_for_ml, topic, context
+                )
+
+                logger.info(
+                    f"[Self-Evaluation] Score: {eval_result.overall_score:.2f}, "
+                    f"Recommendation: {eval_result.recommendation.value}"
+                )
+
+                # Check if we should retry with different strategy
+                if (
+                    eval_result.recommendation.value
+                    == "retry_different_strategy"  # Use .value
+                ):
+                    logger.info(
+                        f"[Self-Evaluation] Recommends retry, attempting different strategy "
+                        f"(attempt {retry_count + 1})"
+                    )
+
+                    # Record failed attempt
+                    self._record_strategy_usage(
+                        selected_strategy,
+                        query_for_ml,
+                        result,
+                        response_time,
+                        success=False,
+                        context=context,
+                    )
+
+                    retry_count += 1
+                    continue  # Try next strategy
+
+                # Adjust confidence if suggested
+                if eval_result.confidence_adjusted and eval_result.suggested_confidence:
+                    logger.info(
+                        f"[Self-Evaluation] Adjusting confidence: "
+                        f"{result.combined_confidence:.2f} → {eval_result.suggested_confidence:.2f}"
+                    )
+                    result.combined_confidence = eval_result.suggested_confidence
+
+            # 4. Record successful strategy usage
+            if result:
+                self._record_strategy_usage(
+                    selected_strategy,
+                    query_for_ml,
+                    result,
+                    response_time,
+                    success=True,
+                    context=context,
+                )
+
+                logger.info(
+                    f"[Meta-Learning] Success with '{selected_strategy}' "
+                    f"(confidence: {result.combined_confidence:.2f})"
+                )
+                return result
+            else:
+                # Strategy failed to produce result
+                self._record_strategy_usage(
+                    selected_strategy,
+                    query_for_ml,
+                    None,
+                    response_time,
+                    success=False,
+                    context=context,
+                )
+
+                retry_count += 1
+
+        # All retries exhausted
+        logger.warning(
+            f"[Meta-Learning] All retries exhausted ({retry_count} attempts)"
+        )
+        return None
+
+    def _execute_resonance_strategy(
+        self,
+        topic: str,
+        relation_type: str,
+        context: Dict[str, Any],
+        query_text: str,
+    ) -> Optional[AggregatedResult]:
+        """
+        Executes Resonance Strategy with Adaptive Hyperparameters.
+
+        Special handling for Resonance:
+        1. Use AdaptiveResonanceEngine with auto-tuning
+        2. Self-evaluation of activation map
+        3. Enhanced proof tree generation
+
+        Args:
+            topic: Topic to reason about
+            relation_type: Relation type
+            context: Context dict
+            query_text: Query text
+
+        Returns:
+            AggregatedResult or None
+        """
+        if not self.resonance_engine:
+            logger.warning("[Resonance] ResonanceEngine not available")
+            return None
+
+        logger.info("[Resonance] Executing with adaptive hyperparameters")
+
+        # 1. Auto-tune hyperparameters (if AdaptiveResonanceEngine)
+        if isinstance(self.resonance_engine, AdaptiveResonanceEngine):
+            try:
+                self.resonance_engine.auto_tune_hyperparameters()
+                logger.debug("[Resonance] Auto-tuning completed")
+            except Exception as e:
+                logger.warning(f"[Resonance] Auto-tuning failed: {e}")
+
+        # 2. Execute resonance activation
+        try:
+            allowed_relations = context.get("allowed_relations", [relation_type])
+
+            activation_map = self.resonance_engine.activate_concept(
+                start_word=topic,
+                query_context=context,
+                allowed_relations=allowed_relations,
+            )
+
+            if not activation_map or activation_map.concepts_activated <= 1:
+                logger.info("[Resonance] No significant activation")
+                return None
+
+            # 3. Extract inferred facts from activation map
+            inferred_facts = {}
+            top_concepts = activation_map.get_top_concepts(n=20)
+
+            for concept, activation in top_concepts:
+                if concept == topic:
+                    continue  # Skip start concept
+
+                # Find paths to determine relation type
+                paths = activation_map.get_paths_to(concept)
+                if paths:
+                    best_path = max(paths, key=lambda p: p.confidence_product)
+                    if best_path.relations:
+                        rel_type = best_path.relations[0]
+                        if rel_type not in inferred_facts:
+                            inferred_facts[rel_type] = []
+                        if concept not in inferred_facts[rel_type]:
+                            inferred_facts[rel_type].append(concept)
+
+            # Calculate confidence
+            confidence = min(activation_map.max_activation, 1.0)
+
+            # Boost for resonance points
+            if activation_map.resonance_points:
+                resonance_boost = len(activation_map.resonance_points) * 0.05
+                confidence = min(confidence + resonance_boost, 1.0)
+
+            # 4. Create ReasoningResult
+            result = ReasoningResult(
+                strategy=ReasoningStrategy.RESONANCE,
+                success=True,
+                confidence=confidence,
+                inferred_facts=inferred_facts,
+                proof_tree=None,  # Will be created below
+                proof_trace=self.resonance_engine.get_activation_summary(
+                    activation_map
+                ),
+                metadata={
+                    "concepts_activated": activation_map.concepts_activated,
+                    "waves_executed": activation_map.waves_executed,
+                    "resonance_points": len(activation_map.resonance_points),
+                    "max_activation": activation_map.max_activation,
+                },
+            )
+
+            # 5. Create Proof Tree
+            if PROOF_SYSTEM_AVAILABLE:
+                proof_tree = ProofTree(query=query_text)
+
+                # Root step: Activation summary
+                summary = self.resonance_engine.get_activation_summary(activation_map)
+                root_step = UnifiedProofStep(
+                    step_id="resonance_activation",
+                    step_type=StepType.INFERENCE,
+                    inputs=[topic],
+                    output=f"{activation_map.concepts_activated} Konzepte aktiviert",
+                    confidence=confidence,
+                    explanation_text=summary,
+                    source_component="adaptive_resonance_engine",
+                    metadata={
+                        "waves": activation_map.waves_executed,
+                        "resonance_points": len(activation_map.resonance_points),
+                    },
+                )
+                proof_tree.add_root_step(root_step)
+
+                result.proof_tree = proof_tree
+
+            # 6. Create AggregatedResult
+            aggregated = AggregatedResult(
+                combined_confidence=confidence,
+                inferred_facts=inferred_facts,
+                merged_proof_tree=result.proof_tree,
+                strategies_used=[ReasoningStrategy.RESONANCE],
+                individual_results=[result],
+                explanation=f"Resonance Strategy: {activation_map.concepts_activated} Konzepte aktiviert, "
+                f"{len(activation_map.resonance_points)} Resonanz-Punkte",
+                is_hypothesis=False,
+            )
+
+            return aggregated
+
+        except Exception as e:
+            logger.error(f"[Resonance] Execution failed: {e}", exc_info=True)
+            return None
 
     def _try_direct_fact_lookup(
         self, topic: str, relation_type: str
@@ -1181,6 +1515,223 @@ class ReasoningOrchestrator:
             combined_disbelief = new_disbelief
 
         return combined_belief
+
+    # ========================================================================
+    # Meta-Learning Helper Methods
+    # ========================================================================
+
+    def _get_available_strategy_names(
+        self, exclude: Optional[List[str]] = None
+    ) -> List[str]:
+        """
+        Returns list of available strategy names (string format for Meta-Learning).
+
+        Args:
+            exclude: Optional list of strategy names to exclude
+
+        Returns:
+            List of available strategy names
+        """
+        exclude = exclude or []
+        strategies = []
+
+        # Map available engines to strategy names
+        strategy_availability = {
+            "direct_fact": True,  # Always available
+            "logic_engine": self.logic_engine is not None,
+            "graph_traversal": self.graph_traversal is not None,
+            "probabilistic": self.probabilistic_engine is not None,
+            "abductive": self.abductive_engine is not None,
+            "combinatorial": self.combinatorial_reasoner is not None,
+            "spatial": self.spatial_reasoner is not None,
+            "resonance": self.resonance_engine is not None,
+        }
+
+        for name, available in strategy_availability.items():
+            if available and name not in exclude:
+                strategies.append(name)
+
+        return strategies
+
+    def _map_strategy_name_to_enum(
+        self, strategy_name: str
+    ) -> Optional[ReasoningStrategy]:
+        """
+        Maps strategy name (string) to ReasoningStrategy enum.
+
+        Args:
+            strategy_name: Strategy name as string
+
+        Returns:
+            ReasoningStrategy enum or None
+        """
+        mapping = {
+            "direct_fact": ReasoningStrategy.DIRECT_FACT,
+            "logic_engine": ReasoningStrategy.LOGIC_ENGINE,
+            "graph_traversal": ReasoningStrategy.GRAPH_TRAVERSAL,
+            "probabilistic": ReasoningStrategy.PROBABILISTIC,
+            "abductive": ReasoningStrategy.ABDUCTIVE,
+            "combinatorial": ReasoningStrategy.COMBINATORIAL,
+            "spatial": ReasoningStrategy.SPATIAL,
+            "resonance": ReasoningStrategy.RESONANCE,
+        }
+
+        return mapping.get(strategy_name)
+
+    def _execute_single_strategy(
+        self,
+        topic: str,
+        relation_type: str,
+        strategy: ReasoningStrategy,
+    ) -> Optional[AggregatedResult]:
+        """
+        Executes a single strategy and returns result.
+
+        Args:
+            topic: Topic to reason about
+            relation_type: Relation type
+            strategy: Strategy to execute
+
+        Returns:
+            AggregatedResult or None
+        """
+        try:
+            result = None
+
+            if strategy == ReasoningStrategy.DIRECT_FACT:
+                result = self._try_direct_fact_lookup(topic, relation_type)
+            elif strategy == ReasoningStrategy.GRAPH_TRAVERSAL:
+                result = self._try_graph_traversal(topic, relation_type)
+            elif strategy == ReasoningStrategy.LOGIC_ENGINE:
+                result = self._try_logic_engine(topic, relation_type)
+            elif strategy == ReasoningStrategy.PROBABILISTIC:
+                result = self._try_probabilistic(topic, relation_type)
+            elif strategy == ReasoningStrategy.ABDUCTIVE:
+                result = self._try_abductive(topic, relation_type)
+            elif strategy == ReasoningStrategy.SPATIAL:
+                result = self._try_spatial_reasoning(topic, relation_type)
+            elif strategy == ReasoningStrategy.RESONANCE:
+                result = self._try_resonance(topic, relation_type)
+
+            if result:
+                # Wrap in AggregatedResult
+                return self._create_aggregated_result([result])
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error executing strategy {strategy}: {e}", exc_info=True)
+            return None
+
+    def _evaluate_result_quality(
+        self,
+        result: AggregatedResult,
+        query: str,
+        topic: str,
+        context: Dict[str, Any],
+    ):
+        """
+        Evaluates result quality using SelfEvaluator.
+
+        Args:
+            result: The AggregatedResult to evaluate
+            query: Original query text
+            topic: Topic
+            context: Context dict
+
+        Returns:
+            EvaluationResult from SelfEvaluator
+        """
+        if not self.self_evaluator:
+            # Return dummy result if evaluator not available
+            from component_50_self_evaluation import (
+                EvaluationResult,
+                RecommendationType,
+            )
+
+            return EvaluationResult(
+                overall_score=0.7,
+                checks={},
+                uncertainties=[],
+                recommendation=RecommendationType.SHOW_TO_USER,
+            )
+
+        # Prepare answer dict for evaluator
+        answer = {
+            "text": result.explanation,
+            "confidence": result.combined_confidence,
+            "proof_tree": result.merged_proof_tree,
+            "reasoning_paths": [],  # TODO: Extract from result if available
+        }
+
+        # Evaluate
+        eval_result = self.self_evaluator.evaluate_answer(
+            question=query, answer=answer, context=context
+        )
+
+        return eval_result
+
+    def _record_strategy_usage(
+        self,
+        strategy_name: str,
+        query: str,
+        result: Optional[AggregatedResult],
+        response_time: float,
+        success: bool,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Records strategy usage in MetaLearningEngine.
+
+        Args:
+            strategy_name: Name of the strategy
+            query: Query text
+            result: Result (can be None if failed)
+            response_time: Time taken in seconds
+            success: Whether strategy succeeded
+            context: Optional context dict
+        """
+        if not self.meta_learning_engine:
+            return
+
+        # Prepare result dict for MetaLearningEngine
+        result_dict = {
+            "confidence": result.combined_confidence if result else 0.0,
+            "success": success,
+        }
+
+        if not success:
+            result_dict["error"] = "Strategy failed to produce result"
+
+        # Determine user feedback (for now, automatic based on confidence)
+        user_feedback = None
+        if result:
+            if result.combined_confidence >= 0.8:
+                user_feedback = "correct"  # High confidence assumed correct
+            elif result.combined_confidence < 0.4:
+                user_feedback = "incorrect"  # Low confidence assumed incorrect
+            else:
+                user_feedback = "neutral"
+
+        # Record usage
+        try:
+            self.meta_learning_engine.record_strategy_usage(
+                strategy=strategy_name,
+                query=query,
+                result=result_dict,
+                response_time=response_time,
+                context=context,
+                user_feedback=user_feedback,
+            )
+
+            logger.debug(
+                f"[Meta-Learning] Recorded usage for '{strategy_name}': "
+                f"success={success}, confidence={result_dict['confidence']:.2f}, "
+                f"time={response_time:.3f}s"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to record strategy usage: {e}")
 
     def _load_facts_from_graph(self, topic: str):
         """Load facts from knowledge graph (helper method)."""

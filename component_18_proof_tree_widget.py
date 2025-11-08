@@ -749,9 +749,6 @@ class ProofTreeWidget(QWidget):
         Uses a top-down tree layout algorithm that positions nodes
         to minimize edge crossings and maintain visual clarity.
         """
-        # Track positions per level
-        level_positions: Dict[int, float] = {}
-
         # Process each root separately
         x_offset = 0
         for root in roots:

@@ -63,6 +63,7 @@ class KonzeptNetzwerkCore:
             self.driver.verify_connectivity()
             logger.info("Neo4j-Verbindung erfolgreich hergestellt", extra={"uri": uri})
             self._create_constraints()
+            self._create_indexes()
         except Exception as e:
             raise wrap_exception(
                 e,
@@ -184,10 +185,61 @@ class KonzeptNetzwerkCore:
                         )
 
             logger.info("Neo4j Constraints erfolgreich konfiguriert")
-        except Exception as e:
+        except Exception:
             # Constraint-Fehler sind nicht kritisch (können bereits existieren)
             # Werfe keine Exception, nur loggen
             logger.error("Fehler beim Konfigurieren der Constraints", exc_info=True)
+
+    def _create_indexes(self):
+        """
+        Erstellt Performance-Indizes für häufig verwendete Queries
+
+        Indizes:
+        - wort_lemma_index: Index auf Wort.lemma (bereits durch Constraint abgedeckt)
+        - relation_confidence: Index auf relationship.confidence
+        - relation_context: Index auf relationship.context
+        """
+        if not self.driver:
+            return
+
+        logger.debug("Erstelle Neo4j Performance-Indizes")
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                # Note: wort_lemma_index wird automatisch durch UNIQUE Constraint erstellt
+
+                # Indizes für Relationship Properties
+                # Neo4j syntax variiert je nach Version, wir verwenden die moderne Syntax
+                indexes: List[tuple[str, str]] = [
+                    # Index für Confidence-Filter auf allen Relationships
+                    (
+                        "relation_confidence_index",
+                        "CREATE INDEX relation_confidence_index IF NOT EXISTS "
+                        "FOR ()-[r]-() ON (r.confidence)",
+                    ),
+                    # Index für Context-Filter auf allen Relationships
+                    (
+                        "relation_context_index",
+                        "CREATE INDEX relation_context_index IF NOT EXISTS "
+                        "FOR ()-[r]-() ON (r.context)",
+                    ),
+                ]
+
+                for index_name, query in indexes:
+                    try:
+                        session.run(query)
+                        logger.debug(f"Index '{index_name}' erstellt/verifiziert")
+                    except Exception as e:
+                        # Index-Fehler sind nicht kritisch
+                        logger.warning(
+                            f"Index '{index_name}' konnte nicht erstellt werden: {e}"
+                        )
+
+            logger.info("Neo4j Performance-Indizes erfolgreich konfiguriert")
+
+        except Exception:
+            # Index-Fehler sind nicht kritisch
+            logger.error("Fehler beim Konfigurieren der Indizes", exc_info=True)
 
     def ensure_wort_und_konzept(self, lemma: str) -> bool:
         """
@@ -940,49 +992,6 @@ class KonzeptNetzwerkCore:
 
             return words
 
-    def word_exists(self, lemma: str) -> bool:
-        """
-        Prüft ob ein Wort im Graph existiert (schnelle Check-Methode).
-
-        Diese Methode ist optimiert für Performance:
-        - Nutzt LIMIT 1 für frühen Query-Abbruch
-        - Cached Ergebnisse für häufige Anfragen
-        - Vermeidet unnötige Datenübertragung
-
-        Args:
-            lemma: Das zu prüfende Wort (wird automatisch lowercase)
-
-        Returns:
-            True wenn Wort existiert, sonst False
-        """
-        if not self.driver:
-            return False
-
-        lemma_lower = lemma.lower().strip()
-        if not lemma_lower:
-            return False
-
-        try:
-            with self.driver.session(database="neo4j") as session:
-                result = session.run(
-                    """
-                    MATCH (w:Wort {lemma: $lemma})
-                    RETURN w.lemma AS lemma
-                    LIMIT 1
-                    """,
-                    lemma=lemma_lower,
-                )
-                # Konvertiere zu Liste und prüfe ob nicht leer
-                records = list(result)
-                exists = len(records) > 0
-
-                logger.debug(f"word_exists('{lemma_lower}'): {exists}")
-                return exists
-
-        except Exception as e:
-            logger.error(f"Fehler bei word_exists für '{lemma}': {e}", exc_info=True)
-            return False
-
     def find_similar_words(
         self,
         query_word: str,
@@ -1029,9 +1038,7 @@ class KonzeptNetzwerkCore:
 
             # Erzeuge Embedding für query_word (nicht verwendet, nur für Validierung)
             try:
-                query_embedding: Any = embedding_service.get_embedding(
-                    query_word.lower()
-                )
+                _ = embedding_service.get_embedding(query_word.lower())
             except Exception as e:
                 logger.error(f"find_similar_words: Fehler beim Query-Embedding: {e}")
                 return []
@@ -1448,4 +1455,39 @@ class KonzeptNetzwerkCore:
                 subject_id=subject_id,
                 proposition=proposition,
             )
-            return False
+
+    def get_node_count(self) -> int:
+        """
+        Ermittelt die Gesamtanzahl der Knoten im Graph.
+
+        Zählt alle Wort- und Konzept-Nodes für adaptive Hyperparameter-Tuning.
+
+        Returns:
+            Anzahl der Nodes im Graph
+        """
+        if not self.driver:
+            logger.error("get_node_count: Kein DB-Driver verfügbar")
+            return 0
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(
+                    """
+                    MATCH (n)
+                    WHERE n:Wort OR n:Konzept
+                    RETURN count(n) AS node_count
+                    """
+                )
+                record = result.single()
+
+                if not record:
+                    logger.warning("get_node_count: Keine Nodes gefunden")
+                    return 0
+
+                count = record["node_count"]
+                logger.debug(f"Graph enthält {count} Nodes")
+                return count
+
+        except Exception as e:
+            logger.log_exception(e, "get_node_count: Fehler")
+            return 0

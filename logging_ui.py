@@ -11,32 +11,32 @@ Features:
 """
 
 import logging
+from collections import deque
 from pathlib import Path
 from typing import List
-from collections import deque
 
 from PySide6.QtCore import QTimer, Signal
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QPushButton,
-    QTextEdit,
-    QGroupBox,
-    QCheckBox,
-    QSpinBox,
     QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
 )
-from PySide6.QtGui import QTextCursor, QColor, QTextCharFormat
 
 from component_15_logging_config import (
-    setup_logging,
     DEFAULT_LOG_FILE,
     ERROR_LOG_FILE,
-    PERFORMANCE_LOG_FILE,
     LOG_DIR,
+    PERFORMANCE_LOG_FILE,
+    setup_logging,
 )
 
 
@@ -484,10 +484,11 @@ def show_log_viewer(parent=None):
 
 if __name__ == "__main__":
     """Test-Code für die UI-Komponenten"""
-    from PySide6.QtWidgets import QApplication
     import sys
 
-    from component_15_logging_config import setup_logging, get_logger
+    from PySide6.QtWidgets import QApplication
+
+    from component_15_logging_config import get_logger, setup_logging
 
     # Initialisiere Logging
     setup_logging()

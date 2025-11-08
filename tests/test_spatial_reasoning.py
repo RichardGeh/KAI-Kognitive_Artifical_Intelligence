@@ -10,7 +10,6 @@ Tests cover:
 - SpatialReasoner: transitive inference, caching, performance metrics
 """
 
-
 import pytest
 
 from component_42_spatial_reasoning import (

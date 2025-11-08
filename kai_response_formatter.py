@@ -10,10 +10,23 @@ Verantwortlichkeiten:
 """
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+from component_50_self_evaluation import (
+    RecommendationType,
+    SelfEvaluator,
+)
 from component_confidence_manager import ConfidenceLevel, get_confidence_manager
 from component_utils_text_normalization import clean_entity as normalize_entity
+
+# Optional: FeedbackHandler für Answer Tracking
+try:
+    from component_51_feedback_handler import FeedbackHandler
+
+    FEEDBACK_HANDLER_AVAILABLE = True
+except ImportError:
+    FEEDBACK_HANDLER_AVAILABLE = False
+    FeedbackHandler = None
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +37,10 @@ class KaiResponse:
 
     text: str
     trace: List[str] = field(default_factory=list)
+    answer_id: Optional[str] = None  # Für Feedback-Tracking
+    confidence: Optional[float] = None
+    strategy: Optional[str] = None
+    evaluation: Optional[Any] = None  # EvaluationResult
 
 
 class KaiResponseFormatter:
@@ -38,10 +55,25 @@ class KaiResponseFormatter:
     - Generiert confidence-aware Antworten für alle Reasoning-Typen
     """
 
-    def __init__(self):
-        """Initialisiert den Formatter mit globalem ConfidenceManager."""
+    def __init__(self, feedback_handler: Optional[Any] = None):
+        """
+        Initialisiert den Formatter mit globalem ConfidenceManager und SelfEvaluator.
+
+        Args:
+            feedback_handler: Optional FeedbackHandler für Answer-Tracking
+        """
         self.confidence_manager = get_confidence_manager()
-        logger.info("KaiResponseFormatter initialisiert mit ConfidenceManager")
+        self.self_evaluator = SelfEvaluator()
+        self.feedback_handler = feedback_handler
+
+        if self.feedback_handler:
+            logger.info(
+                "KaiResponseFormatter initialisiert mit ConfidenceManager, SelfEvaluator und FeedbackHandler"
+            )
+        else:
+            logger.info(
+                "KaiResponseFormatter initialisiert mit ConfidenceManager und SelfEvaluator"
+            )
 
     @staticmethod
     def clean_entity(entity_text: str) -> str:
@@ -96,34 +128,32 @@ class KaiResponseFormatter:
 
             if reasoning_prefix:
                 return f"{reasoning_prefix} habe ich {qualifier} (konfidenz: {confidence:.0%}) herausgefunden:"
-            else:
-                return f"{qualifier} (konfidenz: {confidence:.0%}) weiß ich:"
+
+            return f"{qualifier} (konfidenz: {confidence:.0%}) weiß ich:"
 
         elif level == ConfidenceLevel.MEDIUM:
             qualifier = "mit mittlerer sicherheit"
 
             if reasoning_prefix:
                 return f"{reasoning_prefix} vermute ich {qualifier} (konfidenz: {confidence:.0%}):"
-            else:
-                return f"{qualifier} (konfidenz: {confidence:.0%}) vermute ich:"
+
+            return f"{qualifier} (konfidenz: {confidence:.0%}) vermute ich:"
 
         elif level == ConfidenceLevel.LOW:
             qualifier = "mit geringer sicherheit"
 
             if reasoning_prefix:
                 return f"{reasoning_prefix} vermute ich vorsichtig {qualifier} (konfidenz: {confidence:.0%}):"
-            else:
-                return (
-                    f"{qualifier} (konfidenz: {confidence:.0%}) vermute ich vorsichtig:"
-                )
+
+            return f"{qualifier} (konfidenz: {confidence:.0%}) vermute ich vorsichtig:"
 
         else:  # UNKNOWN
             qualifier = "sehr unsicher"
 
             if reasoning_prefix:
                 return f"{reasoning_prefix} bin ich {qualifier} (konfidenz: {confidence:.0%}), aber möglich:"
-            else:
-                return f"ich bin {qualifier} (konfidenz: {confidence:.0%}), aber möglicherweise:"
+
+            return f"ich bin {qualifier} (konfidenz: {confidence:.0%}), aber möglicherweise:"
 
     def format_low_confidence_warning(self, confidence: float) -> str:
         """
@@ -151,6 +181,144 @@ class KaiResponseFormatter:
         # HIGH: Keine Warnung
         return ""
 
+    def evaluate_and_enrich_response(
+        self,
+        question: str,
+        answer_text: str,
+        confidence: float,
+        strategy: str = "unknown",
+        used_relations: Optional[List[str]] = None,
+        used_concepts: Optional[List[str]] = None,
+        proof_tree: Optional[Any] = None,
+        reasoning_paths: Optional[List[Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        track_for_feedback: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Führt Self-Evaluation durch und reichert Antwort mit Warnungen an.
+
+        ERWEITERT in Phase 3.4: Answer Tracking für User Feedback Loop
+
+        Args:
+            question: Die ursprüngliche Frage
+            answer_text: Die generierte Antwort
+            confidence: Claimed confidence
+            strategy: Verwendete Reasoning-Strategy
+            used_relations: Optional Liste von Relation-IDs
+            used_concepts: Optional Liste von Konzept-IDs
+            proof_tree: Optional ProofTree Objekt
+            reasoning_paths: Optional Liste von ReasoningPaths
+            context: Optional zusätzlicher Kontext
+            track_for_feedback: Ob Antwort für Feedback getrackt werden soll
+
+        Returns:
+            Dict mit:
+                - 'text': Angereicherte Antwort
+                - 'confidence': Ggf. angepasste Confidence
+                - 'evaluation': EvaluationResult Objekt
+                - 'warnings': Liste von Warnungen
+                - 'answer_id': Optional Answer-ID für Feedback (wenn tracked)
+        """
+        # Erstelle Answer-Dict für Evaluator
+        answer_dict = {
+            "text": answer_text,
+            "confidence": confidence,
+            "proof_tree": proof_tree,
+            "reasoning_paths": reasoning_paths or [],
+        }
+
+        # Führe Evaluation durch
+        evaluation = self.self_evaluator.evaluate_answer(question, answer_dict, context)
+
+        # Angereicherte Antwort erstellen
+        enriched_text = answer_text
+        warnings = []
+
+        # 1. Füge Unsicherheiten als Warnungen hinzu
+        if evaluation.uncertainties:
+            warnings.append("\n⚠ UNSICHERHEITEN:")
+            for uncertainty in evaluation.uncertainties:
+                warnings.append(f"  • {uncertainty}")
+
+        # 2. Prüfe Recommendation
+        if evaluation.recommendation == RecommendationType.SHOW_WITH_WARNING:
+            warnings.append(
+                f"\n[INFO] Diese Antwort hat eine Evaluation-Score von {evaluation.overall_score:.0%}. "
+                "Bitte mit Vorsicht interpretieren."
+            )
+        elif evaluation.recommendation == RecommendationType.REQUEST_CLARIFICATION:
+            warnings.append(
+                "\n[WARNING] Die Antwort erscheint unvollständig. "
+                "Bitte stelle die Frage präziser oder mit mehr Kontext."
+            )
+        elif (
+            evaluation.recommendation
+            == RecommendationType.RETRY_WITH_DIFFERENT_STRATEGY
+        ):
+            warnings.append(
+                "\n[WARNING] Diese Reasoning-Strategy liefert möglicherweise keine optimale Antwort. "
+                "Versuche es mit einer alternativen Formulierung."
+            )
+        elif evaluation.recommendation == RecommendationType.INSUFFICIENT_KNOWLEDGE:
+            warnings.append(
+                "\n[WARNING] Mein Wissen zu diesem Thema ist unzureichend. "
+                "Bitte lehre mich mehr über dieses Thema."
+            )
+
+        # 3. Confidence-Adjustment
+        adjusted_confidence = confidence
+        if (
+            evaluation.confidence_adjusted
+            and evaluation.suggested_confidence is not None
+        ):
+            adjusted_confidence = evaluation.suggested_confidence
+            warnings.append(
+                f"\n[INFO] Confidence wurde angepasst: {confidence:.0%} → {adjusted_confidence:.0%} "
+                f"(Grund: Beweislage unzureichend)"
+            )
+
+        # 4. Füge Standard-Confidence-Warning hinzu
+        confidence_warning = self.format_low_confidence_warning(adjusted_confidence)
+        if confidence_warning:
+            warnings.append(confidence_warning)
+
+        # Kombiniere Antwort mit Warnungen
+        if warnings:
+            enriched_text = answer_text + "\n" + "\n".join(warnings)
+
+        # 5. Answer Tracking für Feedback (optional)
+        answer_id = None
+        if track_for_feedback and self.feedback_handler:
+            try:
+                answer_id = self.feedback_handler.track_answer(
+                    query=question,
+                    answer_text=enriched_text,
+                    confidence=adjusted_confidence,
+                    strategy=strategy,
+                    used_relations=used_relations,
+                    used_concepts=used_concepts,
+                    proof_tree=proof_tree,
+                    reasoning_paths=reasoning_paths,
+                    evaluation_score=evaluation.overall_score,
+                    metadata={
+                        "original_confidence": confidence,
+                        "confidence_adjusted": evaluation.confidence_adjusted,
+                        "recommendation": evaluation.recommendation.value,
+                    },
+                )
+                logger.debug(f"Answer tracked for feedback | id={answer_id[:8]}")
+            except Exception as e:
+                logger.warning(f"Could not track answer for feedback: {e}")
+
+        return {
+            "text": enriched_text,
+            "confidence": adjusted_confidence,
+            "evaluation": evaluation,
+            "warnings": warnings,
+            "answer_id": answer_id,
+            "strategy": strategy,
+        }
+
     @staticmethod
     def format_person_answer(
         topic: str,
@@ -172,33 +340,34 @@ class KaiResponseFormatter:
         Returns:
             Formatierte Antwort als String
         """
-        parts: List[str] = []
+        # Build response parts
+        response_parts: List[str] = []
 
         # Wenn es Bedeutungen gibt, zeige sie
         if bedeutungen:
-            parts.append(f"'{topic}': {bedeutungen[0]}")
+            response_parts.append(f"'{topic}': {bedeutungen[0]}")
         else:
-            parts.append(f"über '{topic}' weiß ich:")
+            response_parts.append(f"über '{topic}' weiß ich:")
 
         # Synonyme/Alternative Namen
         if synonyms:
-            parts.append(f"auch bekannt als: {', '.join(synonyms)}")
+            response_parts.append(f"auch bekannt als: {', '.join(synonyms)}")
 
         # IS_A für Personen-Kategorien
         if "IS_A" in facts:
             is_a_str = ", ".join(facts["IS_A"])
-            parts.append(f"ist ein/eine {is_a_str}")
+            response_parts.append(f"ist ein/eine {is_a_str}")
 
         # CAPABLE_OF für Fähigkeiten/Rollen
         if "CAPABLE_OF" in facts:
             capable_str = ", ".join(facts["CAPABLE_OF"])
-            parts.append(f"kann {capable_str}")
+            response_parts.append(f"kann {capable_str}")
 
         # Wenn keine relevanten Fakten gefunden wurden
-        if len(parts) == 1 and not bedeutungen:
+        if len(response_parts) == 1 and not bedeutungen:
             return f"Ich habe keine spezifischen Informationen darüber, wer oder was '{topic}' ist."
 
-        return ". ".join(parts) + "."
+        return ". ".join(response_parts) + "."
 
     @staticmethod
     def format_time_answer(
@@ -218,7 +387,6 @@ class KaiResponseFormatter:
         # Suche nach zeitbezogenen Relationen (falls vorhanden)
         time_relations = ["OCCURRED_AT", "HAPPENS_AT", "TIME", "DATE"]
 
-        parts: List[str] = []
         for relation in time_relations:
             if relation in facts:
                 time_str = ", ".join(facts[relation])
@@ -287,7 +455,6 @@ class KaiResponseFormatter:
         # Suche nach kausal-relevanten Relationen
         causal_relations = ["CAUSED_BY", "REASON", "PURPOSE", "BECAUSE_OF"]
 
-        parts: List[str] = []
         for relation in causal_relations:
             if relation in facts:
                 reason_str = ", ".join(facts[relation])
@@ -344,9 +511,9 @@ class KaiResponseFormatter:
         else:
             # Fallback auf alte Logik (für Backwards-Kompatibilität)
             if is_hypothesis:
-                parts = [f"basierend auf abduktiver schlussfolgerung vermute ich:"]
+                parts = ["basierend auf abduktiver schlussfolgerung vermute ich:"]
             elif backward_chaining_used:
-                parts = [f"durch komplexe schlussfolgerung habe ich herausgefunden:"]
+                parts = ["durch komplexe schlussfolgerung habe ich herausgefunden:"]
             else:
                 parts = [f"das weiß ich über {topic}:"]
 
@@ -459,7 +626,7 @@ class KaiResponseFormatter:
                 try:
                     dt = datetime.fromtimestamp(timestamp / 1000.0)
                     time_str = dt.strftime("%Y-%m-%d %H:%M")
-                except:
+                except Exception:
                     time_str = "?"
             else:
                 time_str = "?"
@@ -594,7 +761,7 @@ class KaiResponseFormatter:
                     f"Ich prüfe ob '{subject}' {relation_german} '{target}' liegt."
                 )
                 response_parts.append(
-                    f"Diese Query erfordert ein vollständig initialisiertes räumliches Modell."
+                    "Diese Query erfordert ein vollständig initialisiertes räumliches Modell."
                 )
             else:
                 response_parts.append("Keine räumlichen Relationen zum Prüfen.")

@@ -234,7 +234,9 @@ class StateSpacePlanner:
 
         # If no heuristic provided, use zero heuristic (Dijkstra)
         if heuristic is None:
-            heuristic = lambda s: 0.0
+
+            def heuristic(s):
+                return 0.0
 
         # Priority queue: (f_cost, g_cost, state, action_path)
         # f_cost = g_cost + h_cost (A* evaluation)
@@ -249,7 +251,7 @@ class StateSpacePlanner:
         proof_steps: List[ProofStep] = []
         proof_steps.append(
             ProofStep(
-                step_id=f"plan_0_premise",
+                step_id="plan_0_premise",
                 step_type=StepType.PREMISE,
                 inputs=[],
                 output=str(initial_state),
@@ -413,7 +415,7 @@ class StateSpacePlanner:
 
             # Check if assignment is consistent with constraints
             # (For now, we don't add constraints dynamically - this is extensible)
-            assignment = {var.name: var.domain[0] for var in variables}
+            _ = {var.name: var.domain[0] for var in variables}
 
             # Use constraint solver to validate
             # (This assumes solver has constraints pre-configured)
@@ -642,7 +644,9 @@ if __name__ == "__main__":
 
     # Define states
     initial = State({"x": 0, "y": 0})
-    goal_condition = lambda s: s.get("x") == 3 and s.get("y") == 2
+
+    def goal_condition(s):
+        return s.get("x") == 3 and s.get("y") == 2
 
     # Define actions (move in 4 directions)
     actions = [
@@ -673,7 +677,8 @@ if __name__ == "__main__":
     ]
 
     # Create heuristic (Manhattan distance to goal)
-    heuristic = lambda s: abs(s.get("x", 0) - 3) + abs(s.get("y", 0) - 2)
+    def heuristic(s):
+        return abs(s.get("x", 0) - 3) + abs(s.get("y", 0) - 2)
 
     # Plan with A*
     planner = StateSpacePlanner()

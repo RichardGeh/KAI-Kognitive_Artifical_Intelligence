@@ -5,9 +5,10 @@ Ersetzt ALLE Unicode-Zeichen in allen Python-Dateien durch ASCII-Alternativen.
 Einfacher Ansatz ohne komplexes Regex-Matching.
 """
 
+import io
+
 # WICHTIG: Encoding fix ZUERST
 import sys
-import io
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

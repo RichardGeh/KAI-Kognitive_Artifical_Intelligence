@@ -298,7 +298,7 @@ class PrototypingEngine:
                 centroid = p.get("centroid")
                 if centroid is None or not isinstance(centroid, (list, np.ndarray)):
                     logger.warning(
-                        f"Überspringe Prototyp mit ungültigem Centroid",
+                        "Überspringe Prototyp mit ungültigem Centroid",
                         extra={
                             "prototype_id": p.get("id", "unknown")[:8],
                             "centroid_type": type(centroid).__name__,
@@ -312,7 +312,7 @@ class PrototypingEngine:
                     # Validiere Dimensionen
                     if p_centroid.shape != input_vector.shape:
                         logger.warning(
-                            f"Überspringe Prototyp mit falscher Dimensionalität",
+                            "Überspringe Prototyp mit falscher Dimensionalität",
                             extra={
                                 "prototype_id": p.get("id", "unknown")[:8],
                                 "expected_dim": input_vector.shape,
@@ -330,7 +330,7 @@ class PrototypingEngine:
                         best_match = p
                 except Exception as e:
                     logger.warning(
-                        f"Fehler beim Berechnen der Distanz für Prototyp",
+                        "Fehler beim Berechnen der Distanz für Prototyp",
                         extra={
                             "prototype_id": p.get("id", "unknown")[:8],
                             "error": str(e),
@@ -341,19 +341,22 @@ class PrototypingEngine:
             # Fall 3: Match gefunden und nah genug -> Update
             if best_match and min_distance < NOVELTY_THRESHOLD:
                 logger.info(
-                    f"Found match for prototype {best_match['id']} "
-                    f"with distance {min_distance:.4f}"
+                    "Found match for prototype {} with distance {:.4f}".format(
+                        best_match["id"], min_distance
+                    )
                 )
                 update_success = self._update_prototype(best_match, input_vector)
                 if not update_success:
-                    logger.warning(f"Update failed, but returning prototype ID anyway")
+                    logger.warning("Update failed, but returning prototype ID anyway")
                 return best_match["id"]
 
             # Fall 4: Kein passender Match -> Neuer Prototyp
             else:
                 logger.info(
-                    f"Novelty detected. Min distance {min_distance:.4f} >= threshold. "
-                    f"Creating new prototype for category '{normalized_category}'."
+                    "Novelty detected. Min distance {:.4f} >= threshold. "
+                    "Creating new prototype for category '{}'.".format(
+                        min_distance, normalized_category
+                    )
                 )
                 new_id = self.netzwerk.create_pattern_prototype(
                     input_vector.tolist(), normalized_category
@@ -361,7 +364,7 @@ class PrototypingEngine:
                 if new_id:
                     # Invalidiere Cache nach Erstellung
                     self._invalidate_cache()
-                    logger.info(f"Created new prototype with ID: {new_id}")
+                    logger.info("Created new prototype with ID: {}".format(new_id))
                 else:
                     logger.error("Failed to create new prototype")
                 return new_id
@@ -429,7 +432,7 @@ class PrototypingEngine:
                     centroid = prototype.get("centroid")
                     if centroid is None or not isinstance(centroid, (list, np.ndarray)):
                         logger.warning(
-                            f"Überspringe Prototyp mit ungültigem Centroid",
+                            "Überspringe Prototyp mit ungültigem Centroid",
                             extra={
                                 "prototype_id": prototype.get("id", "unknown")[:8],
                                 "centroid_type": type(centroid).__name__,
@@ -442,7 +445,7 @@ class PrototypingEngine:
                     # Validiere Dimensionen
                     if p_centroid.shape != input_vector.shape:
                         logger.warning(
-                            f"Überspringe Prototyp mit falscher Dimensionalität",
+                            "Überspringe Prototyp mit falscher Dimensionalität",
                             extra={
                                 "prototype_id": prototype.get("id", "unknown")[:8],
                                 "expected_dim": input_vector.shape,

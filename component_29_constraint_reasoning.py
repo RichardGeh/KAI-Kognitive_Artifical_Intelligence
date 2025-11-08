@@ -378,7 +378,7 @@ class ConstraintSolver:
                 self.steps.append(
                     self._create_proof_step(
                         step_type=StepType.INFERENCE,
-                        description=f"AC-3 erfolgreich - Domains reduziert",
+                        description="AC-3 erfolgreich - Domains reduziert",
                     )
                 )
 

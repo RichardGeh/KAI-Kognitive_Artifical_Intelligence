@@ -224,18 +224,18 @@ class Neo4jQueryProfiler:
 
     def print_recommendations(self, profile: QueryProfile):
         """Gibt Profiling-Ergebnisse formatiert aus"""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Query Profile: {profile.query_name}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Execution Time: {profile.execution_time_ms:.2f} ms")
         print(f"DB Hits: {profile.db_hits}")
         print(f"Rows Returned: {profile.rows_returned}")
         print(f"Has Index Scan: {profile.has_index_scan}")
         print(f"Has Label Scan: {profile.has_label_scan}")
-        print(f"\nRecommendations:")
+        print("\nRecommendations:")
         for rec in profile.recommendations:
             print(f"  {rec}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
     def profile_common_queries(self, netzwerk) -> List[QueryProfile]:
         """

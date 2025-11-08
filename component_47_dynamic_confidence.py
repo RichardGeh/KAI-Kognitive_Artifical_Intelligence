@@ -587,8 +587,6 @@ def get_dynamic_confidence_manager(
 # ==================== BEISPIEL-USAGE ====================
 
 if __name__ == "__main__":
-    import logging
-
     logging.basicConfig(level=logging.INFO)
 
     # Mock Netzwerk für Demo

@@ -12,9 +12,13 @@ This module contains all proof-related methods extracted from component_9_logik_
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from component_15_logging_config import get_logger
+from component_17_proof_explanation import Goal, ProofStep
+
+if TYPE_CHECKING:
+    from component_5_linguistik_strukturen import Fact, Rule
 
 # Import Probabilistic Engine for integration
 try:

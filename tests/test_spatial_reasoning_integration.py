@@ -13,7 +13,6 @@ Tests cover:
 - UI widget integration
 """
 
-
 import pytest
 
 from component_17_proof_explanation import ProofStep, StepType

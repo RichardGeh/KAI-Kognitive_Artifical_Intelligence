@@ -8,9 +8,10 @@ WICHTIG:
 - Lässt UI-Strings und andere Strings unverändert
 """
 
+import io
+
 # WICHTIG: Encoding fix ZUERST
 import sys
-import io
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

@@ -455,7 +455,7 @@ class KaiInferenceHandler:
                 }
             else:
                 logger.info(
-                    f"[Graph-Traversal] [X] Keine transitiven Relationen gefunden"
+                    "[Graph-Traversal] [X] Keine transitiven Relationen gefunden"
                 )
 
         except GraphTraversalError as e:
@@ -487,7 +487,7 @@ class KaiInferenceHandler:
         Returns:
             Dictionary mit Ergebnissen oder None
         """
-        logger.info(f"[Backward-Chaining] Versuche regelbasiertes Backward-Chaining...")
+        logger.info("[Backward-Chaining] Versuche regelbasiertes Backward-Chaining...")
 
         # Erstelle Goal für Backward-Chaining
         # Beispiel: "Was ist ein Hund?" -> Goal: IS_A(hund, ?x)
@@ -1093,7 +1093,7 @@ class KaiInferenceHandler:
             return []
 
     def _find_activation_overlap(
-        self, activation_maps: Dict[str, "ActivationMap"]
+        self, activation_maps: Dict[str, Any]
     ) -> Dict[str, Dict[str, float]]:
         """
         Findet semantische Überschneidungen zwischen Activation Maps.
@@ -1130,7 +1130,7 @@ class KaiInferenceHandler:
         self,
         overlap: Dict[str, Dict[str, float]],
         query_concepts: List[str],
-        activation_maps: Dict[str, "ActivationMap"],
+        activation_maps: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """
         Erkennt Widersprüche in den Activation Maps.
@@ -1165,7 +1165,9 @@ class KaiInferenceHandler:
                 for relation in path.relations:
                     # Prüfe ob negativ
                     is_negative = relation.startswith("NOT_")
-                    base_relation = relation[4:] if is_negative else relation
+                    _ = (
+                        relation[4:] if is_negative else relation
+                    )  # base_relation unused
 
                     target = path.target
 
@@ -1230,21 +1232,21 @@ class KaiInferenceHandler:
             # Extrahiere Details
             concept = contr["concept"]
             target = contr["target"]
-            contr["positive_paths"]
+            _ = contr["positive_paths"]  # unused
             neg_paths = contr["negative_paths"]
 
             # Bevorzuge negative Paths (spezifischer)
             if neg_paths:
                 neg_relation = neg_paths[0]["relation"]
-                base_relation = (
+                _ = (
                     neg_relation[4:]
                     if neg_relation.startswith("NOT_")
                     else neg_relation
-                )
+                )  # base_relation unused
 
                 answer = f"Nein, {concept} kann nicht {target}. "
                 answer += f"Obwohl {concept} generell zur Kategorie gehören könnte, "
-                answer += f"gibt es eine explizite Ausnahme."
+                answer += "gibt es eine explizite Ausnahme."
             else:
                 answer = f"Es gibt widersprüchliche Informationen über {concept} und {target}."
 
@@ -1264,7 +1266,7 @@ class KaiInferenceHandler:
                     answer += f"Aktivierung: {sum(sources.values()):.2f}"
                 else:
                     answer = f"Die Konzepte sind semantisch verbunden über '{overlap_concept}', "
-                    answer += f"aber es gibt keine direkte Bestätigung."
+                    answer += "aber es gibt keine direkte Bestätigung."
             else:
                 answer = (
                     f"Die Konzepte sind semantisch verbunden über '{overlap_concept}'. "
@@ -1295,12 +1297,12 @@ class KaiInferenceHandler:
 
     def _build_proof_from_activation(
         self,
-        activation_maps: Dict[str, "ActivationMap"],
+        activation_maps: Dict[str, Any],
         overlap: Dict[str, Dict[str, float]],
         contradictions: List[Dict[str, Any]],
         query: str,
         answer: str,
-    ) -> Optional["ProofTree"]:
+    ) -> Optional[Any]:
         """
         Baut Proof Tree aus Activation Maps.
 
@@ -1401,7 +1403,7 @@ class KaiInferenceHandler:
         self,
         overlap: Dict[str, Dict[str, float]],
         contradictions: List[Dict[str, Any]],
-        activation_maps: Dict[str, "ActivationMap"],
+        activation_maps: Dict[str, Any],
     ) -> float:
         """
         Berechnet Confidence-Score aus Resonance-Daten.

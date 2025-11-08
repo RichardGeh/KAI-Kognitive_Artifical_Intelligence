@@ -325,7 +325,7 @@ class ResonanceViewWidget(QWidget):
                     self.node_positions = nx.nx_agraph.graphviz_layout(
                         self.graph, prog="dot"
                     )
-                except:
+                except Exception:
                     # Fallback to kamada-kawai
                     logger.warning("Graphviz not available, using Kamada-Kawai")
                     self.node_positions = nx.kamada_kawai_layout(self.graph)

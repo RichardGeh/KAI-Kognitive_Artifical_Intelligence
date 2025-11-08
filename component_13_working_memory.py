@@ -670,7 +670,7 @@ class WorkingMemory:
 
                     # Metadata
                     if frame.metadata:
-                        lines.append(f"\nMetadata:")
+                        lines.append("\nMetadata:")
                         for key, value in frame.metadata.items():
                             lines.append(f"  {key}: {value}")
 
@@ -710,7 +710,7 @@ class WorkingMemory:
 
             # Validiere Struktur
             if "frames" not in import_data:
-                print(f"Fehler: JSON-Datei hat keine 'frames'-Struktur")
+                print("Fehler: JSON-Datei hat keine 'frames'-Struktur")
                 return False
 
             # Leere aktuellen Stack

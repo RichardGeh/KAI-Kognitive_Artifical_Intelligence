@@ -643,9 +643,7 @@ class TestIdleCleanup:
         memory.touch_current_context()
 
         # Cleanup mit 0.5 Sekunden Timeout
-        removed_ids = memory.cleanup_idle_contexts(
-            timeout_seconds=0.5, preserve_root=True
-        )
+        _ = memory.cleanup_idle_contexts(timeout_seconds=0.5, preserve_root=True)
 
         # Frame 2 sollte entfernt werden (und dadurch auch Frame 3 wegen Parent-Child-Konsistenz)
         # Frame 1 bleibt (preserve_root=True)

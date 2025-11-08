@@ -272,7 +272,7 @@ class ConfidenceFeedbackManager:
         correct_count = sum(
             1 for fb in historical_feedback if fb.feedback_type == FeedbackType.CORRECT
         )
-        incorrect_count = sum(
+        _ = sum(
             1
             for fb in historical_feedback
             if fb.feedback_type == FeedbackType.INCORRECT

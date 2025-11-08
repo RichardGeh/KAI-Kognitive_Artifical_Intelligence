@@ -141,11 +141,11 @@ class QuestionStrategy(SubGoalStrategy):
         # SCHRITT 1: Direkte Faktenabfrage (effizient, nutzt Cache)
         fact_data = self.worker.netzwerk.query_facts_with_synonyms(topic)
 
-        has_any_knowledge = (
+        _ = (
             bool(fact_data["facts"])
             or bool(fact_data["bedeutungen"])
             or bool(fact_data["synonyms"])
-        )
+        )  # has_any_knowledge unused
 
         # Tracke erfolgreiche Faktensuche
         if fact_data["facts"] or fact_data["bedeutungen"]:
@@ -162,7 +162,7 @@ class QuestionStrategy(SubGoalStrategy):
         # Versuche Backward-Chaining wenn keine direkten Fakten
         if not fact_data["facts"] and not fact_data["bedeutungen"]:
             logger.info(
-                f"[Backward-Chaining] Keine direkten Fakten, versuche komplexe Schlussfolgerung..."
+                "[Backward-Chaining] Keine direkten Fakten, versuche komplexe Schlussfolgerung..."
             )
 
             # BUGFIX: Verwende existierenden InferenceHandler vom Worker (keine neue Instanz!)
@@ -234,7 +234,7 @@ class QuestionStrategy(SubGoalStrategy):
                         "backward_chaining_used": inference_result.get(
                             "is_hypothesis", False
                         )
-                        == False,
+                        is False,
                         "is_hypothesis": inference_result.get("is_hypothesis", False),
                         "proof_trace": proof_trace,
                     }
@@ -814,7 +814,7 @@ class LearningStrategy(SubGoalStrategy):
             # FALLBACK: Wenn keine Fakten extrahiert wurden, speichere als Rohtext-Bedeutung
             # Das verhindert, dass der User denkt "ich habe nichts gelernt"
             if facts_learned == 0:
-                logger.info(f"Keine Fakten extrahiert, speichere als Rohtext-Bedeutung")
+                logger.info("Keine Fakten extrahiert, speichere als Rohtext-Bedeutung")
 
                 # Extrahiere Hauptwort aus dem Satz (meist erstes Nomen)
                 doc = self.worker.preprocessor.process(text_to_learn)
@@ -1848,6 +1848,8 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                 logger.info(f"Pfad gefunden: {len(plan)} Schritte")
 
                 # ProofStep für Planning
+                from component_17_proof_explanation import ProofStep, StepType
+
                 parent_proof_step = context.get("proof_step")
                 proof_step = ProofStep(
                     step_id=f"spatial_planning_{id(planner)}",
@@ -1886,6 +1888,8 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                 logger.info("Kein Pfad gefunden (nicht erreichbar)")
 
                 # ProofStep für nicht-erreichbares Ziel
+                from component_17_proof_explanation import ProofStep, StepType
+
                 parent_proof_step = context.get("proof_step")
                 proof_step = ProofStep(
                     step_id=f"spatial_planning_unreachable_{id(planner)}",
@@ -2374,13 +2378,13 @@ class OrchestratedStrategy(SubGoalStrategy):
             return success, result
 
         logger.info(
-            f"Frage erfolgreich beantwortet (mit Kontext: {has_learned_context})"
+            "Frage erfolgreich beantwortet (mit Kontext: %s)", has_learned_context
         )
 
         # Tracke im Working Memory
         self.worker.working_memory.add_reasoning_state(
             step_type="orchestrated_question",
-            description=f"Frage beantwortet mit gelerntem Kontext",
+            description="Frage beantwortet mit gelerntem Kontext",
             data={"question": segment_text[:100], "has_context": has_learned_context},
         )
 

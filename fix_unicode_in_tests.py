@@ -12,9 +12,10 @@ Lösung:
 - Ersetzt alle problematischen Unicode-Zeichen durch ASCII-Alternativen
 """
 
+import io
+
 # WICHTIG: Encoding fix ZUERST importieren, vor allen anderen Imports
 import sys
-import io
 
 # Erzwinge UTF-8 für stdout/stderr
 if hasattr(sys.stdout, "reconfigure"):

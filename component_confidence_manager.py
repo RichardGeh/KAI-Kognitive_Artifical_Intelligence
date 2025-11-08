@@ -582,8 +582,6 @@ def get_confidence_manager() -> ConfidenceManager:
 # ==================== BEISPIEL-USAGE ====================
 
 if __name__ == "__main__":
-    import logging
-
     logging.basicConfig(level=logging.INFO)
 
     # Initialisiere Manager

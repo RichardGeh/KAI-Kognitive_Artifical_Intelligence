@@ -900,7 +900,7 @@ class AdvancedReasoningMixin:
         rule_implications = []
 
         for rule_app in rule_applications:
-            rule_app.get("rule_id")
+            _ = rule_app.get("rule_id")  # Mark as intentionally unused
             premises_facts = rule_app.get("premises", [])
             conclusion_fact = rule_app.get("conclusion")
 
@@ -947,7 +947,7 @@ class AdvancedReasoningMixin:
             explanation = engine.explain_contradiction(fact1, fact2)
             # "Widerspruch: 'apfel' kann nicht gleichzeitig 'rot' und 'grün' sein."
         """
-        logger.info(f"=== Erkläre Widerspruch zwischen Fakten ===")
+        logger.info("=== Erkläre Widerspruch zwischen Fakten ===")
         logger.debug(f"Fact1: {fact1.pred}({fact1.args})")
         logger.debug(f"Fact2: {fact2.pred}({fact2.args})")
 

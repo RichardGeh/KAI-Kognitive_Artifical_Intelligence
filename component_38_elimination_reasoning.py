@@ -264,7 +264,7 @@ class DeductiveChain:
         if self.is_solved():
             solution = self.get_solution()
             conclusion_step = ProofStep(
-                step_id=f"step_conclusion",
+                step_id="step_conclusion",
                 step_type=StepType.CONCLUSION,
                 explanation_text=f"Eindeutige Lösung gefunden: {solution.object_id}",
                 confidence=1.0,
@@ -274,7 +274,7 @@ class DeductiveChain:
             proof_tree.add_root_step(conclusion_step)
         elif self.is_contradictory():
             contradiction_step = ProofStep(
-                step_id=f"step_contradiction",
+                step_id="step_contradiction",
                 step_type=StepType.CONTRADICTION,
                 explanation_text="Widerspruch: Keine Kandidaten verbleibend",
                 confidence=0.0,
@@ -558,13 +558,13 @@ class EliminationReasoner:
                 break
 
         # Generate proof tree
-        query = f"Löse Puzzle mit {len(statements)} Aussagen"
+        query = "Löse Puzzle mit {} Aussagen".format(len(statements))
         proof_tree = self.deductive_chain.generate_proof_tree(query)
 
         solution = self.deductive_chain.get_solution()
 
         logger.info(
-            f"Statement processing complete",
+            "Statement processing complete",
             extra={
                 "solution_found": solution is not None,
                 "final_candidates": len(self.deductive_chain.current_candidates),
@@ -579,12 +579,6 @@ if __name__ == "__main__":
     print("\n=== Elimination Reasoning Test ===\n")
 
     from component_1_netzwerk import KonzeptNetzwerk
-    from component_35_epistemic_engine import EpistemicEngine
-    from component_37_partial_observation import (
-        PartialObservationReasoner,
-        PartialObserver,
-        WorldObject,
-    )
 
     # Setup
     netzwerk = KonzeptNetzwerk()

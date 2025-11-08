@@ -5,25 +5,25 @@ PySide6 Widget zur Visualisierung des Working Memory Context-Stacks.
 Zeigt hierarchische Tree-View der verschachtelten Kontexte mit Details.
 """
 
+from datetime import datetime
+from typing import Optional
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QFileDialog,
     QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSplitter,
+    QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
-    QPushButton,
-    QLabel,
-    QFileDialog,
-    QTextEdit,
-    QSplitter,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
-from typing import Optional
-from datetime import datetime
 
-from component_13_working_memory import WorkingMemory, ContextFrame, ContextType
-
+from component_13_working_memory import ContextFrame, ContextType, WorkingMemory
 
 # Farb-Mapping für Context-Types
 CONTEXT_TYPE_COLORS = {
@@ -356,8 +356,9 @@ class ContextVisualizationWidget(QWidget):
 
 if __name__ == "__main__":
     """Demo/Test der Context-Visualisierung"""
-    from PySide6.QtWidgets import QApplication
     import sys
+
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 

@@ -28,12 +28,21 @@ from PySide6.QtWidgets import (
 import kai_encoding_fix  # noqa: F401 (automatische Aktivierung beim Import)
 from component_1_netzwerk import KonzeptNetzwerk
 from component_11_embedding_service import EmbeddingService
-from component_15_logging_config import setup_logging
+from component_15_logging_config import logger, setup_logging
 from kai_config import get_config
 from kai_exceptions import KAIException, get_user_friendly_message
 from kai_worker import KaiWorker
 from logging_ui import LogViewerWindow
 from settings_ui import SettingsDialog
+
+# PHASE 3.4 (User Feedback Loop)
+try:
+    from component_51_feedback_handler import FeedbackHandler, FeedbackType
+
+    FEEDBACK_HANDLER_AVAILABLE = True
+except ImportError:
+    FEEDBACK_HANDLER_AVAILABLE = False
+    print("[UI] FeedbackHandler nicht verfügbar - Feedback-Loop deaktiviert")
 
 # Import ProofTreeWidget (with fallback)
 try:
@@ -365,14 +374,167 @@ class ChatInterface(QWidget):
         controls_layout.addWidget(self.curiosity_checkbox)
         controls_layout.addStretch()  # Push alles nach links
 
+        # PHASE 3.4 (User Feedback Loop): Feedback-Buttons
+        self.feedback_widget = self._create_feedback_widget()
+        self.current_answer_id = None  # Track aktuellen Answer für Feedback
+
         self.layout.addWidget(self.history)
         self.layout.addWidget(self.file_progress_label)  # Progress Label
         self.layout.addWidget(self.file_progress_bar)  # Progress Bar
+        self.layout.addWidget(
+            self.feedback_widget
+        )  # Feedback-Buttons (dynamisch ein/aus)
         self.layout.addWidget(
             self.context_label
         )  # Context-Label zwischen History und Input
         self.layout.addWidget(self.input_text)  # Mehrzeiliges Eingabefeld
         self.layout.addLayout(controls_layout)  # Datei-Button + Checkbox
+
+    def _create_feedback_widget(self):
+        """
+        PHASE 3.4: Erstellt Feedback-Widget mit Buttons
+
+        Returns:
+            QWidget mit Feedback-Buttons
+        """
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Label
+        label = QLabel("War diese Antwort hilfreich?")
+        label.setStyleSheet("color: #95a5a6; font-size: 12px; font-weight: bold;")
+
+        # Buttons
+        button_style = """
+            QPushButton {
+                background-color: #34495e;
+                color: #ecf0f1;
+                border: 2px solid #7f8c8d;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #3498db;
+                border: 2px solid #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2980b9;
+            }
+        """
+
+        self.feedback_btn_correct = QPushButton("👍 Richtig")
+        self.feedback_btn_correct.setStyleSheet(button_style)
+        self.feedback_btn_correct.setToolTip("Diese Antwort war korrekt")
+        self.feedback_btn_correct.clicked.connect(
+            lambda: self._on_feedback_clicked("correct")
+        )
+
+        self.feedback_btn_incorrect = QPushButton("👎 Falsch")
+        self.feedback_btn_incorrect.setStyleSheet(button_style)
+        self.feedback_btn_incorrect.setToolTip("Diese Antwort war falsch")
+        self.feedback_btn_incorrect.clicked.connect(
+            lambda: self._on_feedback_clicked("incorrect")
+        )
+
+        self.feedback_btn_unsure = QPushButton("❓ Unsicher")
+        self.feedback_btn_unsure.setStyleSheet(button_style)
+        self.feedback_btn_unsure.setToolTip("Ich bin mir bei dieser Antwort unsicher")
+        self.feedback_btn_unsure.clicked.connect(
+            lambda: self._on_feedback_clicked("unsure")
+        )
+
+        self.feedback_btn_partial = QPushButton("⚖️ Teilweise")
+        self.feedback_btn_partial.setStyleSheet(button_style)
+        self.feedback_btn_partial.setToolTip("Diese Antwort war teilweise korrekt")
+        self.feedback_btn_partial.clicked.connect(
+            lambda: self._on_feedback_clicked("partially_correct")
+        )
+
+        layout.addWidget(label)
+        layout.addWidget(self.feedback_btn_correct)
+        layout.addWidget(self.feedback_btn_incorrect)
+        layout.addWidget(self.feedback_btn_unsure)
+        layout.addWidget(self.feedback_btn_partial)
+        layout.addStretch()
+
+        # Widget-Stil
+        widget.setStyleSheet(
+            """
+            QWidget {
+                background-color: #2c3e50;
+                border: 2px solid #7f8c8d;
+                border-radius: 8px;
+                padding: 5px;
+            }
+        """
+        )
+
+        # Initial versteckt
+        widget.setVisible(False)
+
+        return widget
+
+    def _on_feedback_clicked(self, feedback_type: str):
+        """
+        PHASE 3.4: Handler für Feedback-Button Klicks
+
+        Args:
+            feedback_type: 'correct', 'incorrect', 'unsure', 'partially_correct'
+        """
+        if not self.current_answer_id:
+            logger.warning("Kein current_answer_id für Feedback vorhanden")
+            return
+
+        # Emit Signal an MainWindow
+        # Das MainWindow sollte ein Signal haben: feedback_given(answer_id, feedback_type)
+        # Wir nutzen parent() um zum MainWindow zu kommen
+        main_window = self.parent()
+        while main_window and not isinstance(main_window, QMainWindow):
+            main_window = main_window.parent()
+
+        if main_window and hasattr(main_window, "process_feedback"):
+            main_window.process_feedback(self.current_answer_id, feedback_type)
+
+        # Zeige Danke-Nachricht und blende Buttons aus
+        self._show_feedback_thanks(feedback_type)
+
+    def _show_feedback_thanks(self, feedback_type: str):
+        """Zeigt Danke-Nachricht und blendet Feedback-Widget aus"""
+        # Map feedback_type zu Emoji
+        emoji_map = {
+            "correct": "👍",
+            "incorrect": "👎",
+            "unsure": "❓",
+            "partially_correct": "⚖️",
+        }
+        emoji = emoji_map.get(feedback_type, "✓")
+
+        # Zeige Danke-Nachricht im Chat
+        self.history.append(
+            f'<i style="color:#95a5a6; font-size:12px;">{emoji} '
+            f"Danke für dein Feedback! Ich lerne daraus.</i>"
+        )
+
+        # Blende Feedback-Widget aus
+        self.feedback_widget.setVisible(False)
+        self.current_answer_id = None
+
+    def show_feedback_buttons(self, answer_id: str):
+        """
+        PHASE 3.4: Zeigt Feedback-Buttons für eine trackbare Antwort
+
+        Args:
+            answer_id: ID der Antwort, für die Feedback gegeben werden kann
+        """
+        if answer_id:
+            self.current_answer_id = answer_id
+            self.feedback_widget.setVisible(True)
+            logger.debug(f"Feedback-Buttons aktiviert für answer_id={answer_id[:8]}")
+        else:
+            self.feedback_widget.setVisible(False)
 
     def add_message(self, sender, message):
         color = "#3498db" if sender == "Du" else "#e74c3c"
@@ -657,6 +819,32 @@ class MainWindow(QMainWindow):
             self.kai_worker = KaiWorker(self.netzwerk, embedding_service)
             self.kai_worker.moveToThread(self.kai_thread)
             self.kai_thread.start()
+
+            # PHASE 3.4 (User Feedback Loop): Initialize FeedbackHandler
+            if FEEDBACK_HANDLER_AVAILABLE:
+                try:
+                    meta_learning = (
+                        self.kai_worker.meta_learning
+                        if hasattr(self.kai_worker, "meta_learning")
+                        else None
+                    )
+                    self.feedback_handler = FeedbackHandler(
+                        netzwerk=self.netzwerk, meta_learning=meta_learning
+                    )
+                    # Connect FeedbackHandler to ResponseFormatter
+                    if hasattr(self.kai_worker, "response_formatter"):
+                        self.kai_worker.response_formatter.feedback_handler = (
+                            self.feedback_handler
+                        )
+                        print("[UI] FeedbackHandler mit ResponseFormatter verbunden")
+                    print("[UI] FeedbackHandler initialisiert")
+                except Exception as e:
+                    print(
+                        f"[UI] [WARNING] FeedbackHandler konnte nicht initialisiert werden: {e}"
+                    )
+                    self.feedback_handler = None
+            else:
+                self.feedback_handler = None
 
             # Prüfe ob Worker erfolgreich initialisiert wurde
             if not self.kai_worker.is_initialized_successfully:
@@ -971,8 +1159,60 @@ class MainWindow(QMainWindow):
 
         # Normal response handling
         self.chat_interface.add_message("KAI", response_obj.text)
+
+        # PHASE 3.4 (User Feedback Loop): Show feedback buttons if answer_id available
+        if hasattr(response_obj, "answer_id") and response_obj.answer_id:
+            self.chat_interface.show_feedback_buttons(response_obj.answer_id)
+
         self.chat_interface.input_text.setEnabled(True)
         self.chat_interface.input_text.setFocus()
+
+    def process_feedback(self, answer_id: str, feedback_type: str):
+        """
+        PHASE 3.4 (User Feedback Loop): Verarbeitet User-Feedback für eine Antwort.
+
+        Args:
+            answer_id: Eindeutige ID der Antwort
+            feedback_type: Art des Feedbacks ('correct', 'incorrect', 'unsure', 'partially_correct')
+        """
+        if not FEEDBACK_HANDLER_AVAILABLE or not self.feedback_handler:
+            print("[UI] [WARNING] FeedbackHandler nicht verfügbar")
+            return
+
+        # Map string to FeedbackType enum
+        feedback_type_map = {
+            "correct": FeedbackType.CORRECT,
+            "incorrect": FeedbackType.INCORRECT,
+            "unsure": FeedbackType.UNSURE,
+            "partially_correct": FeedbackType.PARTIALLY_CORRECT,
+        }
+
+        fb_type = feedback_type_map.get(feedback_type)
+        if not fb_type:
+            print(f"[UI] [WARNING] Unbekannter Feedback-Type: {feedback_type}")
+            return
+
+        try:
+            result = self.feedback_handler.process_user_feedback(
+                answer_id=answer_id, feedback_type=fb_type
+            )
+
+            if result["success"]:
+                print(f"[UI] Feedback verarbeitet: {feedback_type} für {answer_id[:8]}")
+                # Optional: Stats anzeigen
+                stats = self.feedback_handler.get_feedback_stats()
+                print(
+                    f"[UI] Feedback-Stats: Accuracy={stats['accuracy']:.2%}, "
+                    f"Total={stats['total_feedbacks']}"
+                )
+            else:
+                print(
+                    f"[UI] [WARNING] Feedback-Verarbeitung fehlgeschlagen: "
+                    f"{result.get('message', 'Unknown')}"
+                )
+
+        except Exception as e:
+            print(f"[UI] [ERROR] Fehler beim Feedback-Processing: {e}")
 
     @Slot(str, str, int)
     def show_preview_confirmation_dialog(

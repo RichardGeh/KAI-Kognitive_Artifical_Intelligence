@@ -25,12 +25,16 @@ KAI ist eine deutschsprachige KI, die Sprache wie Menschen lernt: durch Musterer
 - **Constraint-Reasoning**: CSP-Solver mit Backtracking, AC-3, MRV/LCV
 - **Epistemisches Reasoning**: Multi-Agenten-Wissen, partielle Beobachtungen
 - **Kombinatorisches Reasoning**: Permutationen, Zyklen, Strategiebewertung
+- **Cognitive Resonance**: Spreading Activation mit Resonanz-Boost, Adaptive Hyperparameter-Tuning
+- **Spatial Reasoning**: 2D-Grids, Path-Finding (BFS/DFS/A*), geometrische Formen
 
 ### Lern-Systeme
 - **Autonome Definitions-Erkennung**: Lernt deklarative Aussagen automatisch (Konfidenz ≥0.85)
 - **Pattern Recognition**: 3-Ebenen-System (Tippfehler, Sequenzen, implizite Fakten)
 - **Adaptive Thresholds**: Cold/Warming/Mature-Phasen für dynamische Lernschwellen
 - **Prototype Matching**: Clustering mit 384D-Embeddings (Schwellwert 15.0)
+- **Meta-Learning**: Automatische Strategy-Selection via Epsilon-Greedy, Performance-Tracking
+- **Feedback Loop**: User-Feedback verbessert Strategie-Auswahl (Correct/Incorrect/Unsure)
 
 ### Wissensverarbeitung
 - **Neo4j Knowledge Graph**: Knoten (Wort/Konzept, Episode, Hypothese), Relationen (IS_A, HAS_PROPERTY, CAPABLE_OF, PART_OF, LOCATED_IN)
@@ -42,6 +46,8 @@ KAI ist eine deutschsprachige KI, die Sprache wie Menschen lernt: durch Musterer
 - **Interactive Proof Trees**: Aufklappbare Beweisbäume mit Reasoning-Steps (PySide6 UI)
 - **Plan Monitor**: Live-Tracking von Sub-Goals und Strategien
 - **Inner Picture Display**: Visualisierung interner Repräsentationen
+- **Spatial Grid Widget**: Interaktive 2D-Grid-Visualisierung, Path-Display, Object Animation
+- **Feedback Buttons**: UI-Buttons für sofortiges Feedback (✅/❌/❓/💬)
 
 ---
 
@@ -192,8 +198,9 @@ pytest tests/test_kai_worker.py::TestClass::test_method -v
 
 - **Version**: 0.0.01 (Alpha)
 - **Python**: 3.13.2+
-- **Aktive Entwicklung**: ✓ Episodisches/Arbeitsspeicher, Multi-Hop/Abductive/Probabilistic/Combinatorial Reasoning, Proof Trees, Pattern Recognition (3 Ebenen), Input Orchestration
-- **In Entwicklung**: Episodic Query UI, Self-Improvement, Temporal/Causal Reasoning
+- **Letzte Updates (2025-11-08)**: Cognitive Resonance Engine, Meta-Learning, Feedback Loop, Performance Caching
+- **Aktive Entwicklung**: ✓ Episodisches/Arbeitsspeicher, Multi-Hop/Abductive/Probabilistic/Combinatorial/Resonance Reasoning, Proof Trees, Pattern Recognition (3 Ebenen), Input Orchestration, Spatial Reasoning, Meta-Learning
+- **In Entwicklung**: Resonance Visualization UI, Temporal/Causal Reasoning
 
 ---
 
@@ -229,4 +236,31 @@ Weitere Hilfe: [docs/USER_GUIDE.md – Troubleshooting](docs/USER_GUIDE.md)
 
 ---
 
-*Letzte Aktualisierung: 2025-11-05 
+## 🚀 Neue Features (v0.0.01)
+
+### Cognitive Resonance (Component 44)
+- **Spreading Activation**: Wellenförmige Aktivierung über Knowledge Graph
+- **Resonance Boost**: Multiple Pfade → Verstärkung zentraler Konzepte (⭐)
+- **Adaptive Tuning**: Automatische Hyperparameter-Anpassung basierend auf Graph-Größe
+- **Performance**: TTL Cache 10min, >10x Speedup für wiederholte Queries
+
+### Meta-Learning (Component 46)
+- **Strategy Performance Tracking**: Automatisches Tracking von Success Rate, Confidence, Response Time
+- **Epsilon-Greedy Selection**: 10% Exploration, 90% Exploitation
+- **Query Pattern Learning**: 384D-Embeddings für Pattern Matching
+- **Neo4j Persistence**: Auto-Persist alle 10 Queries
+
+### Feedback Loop (Components 50/51)
+- **User Feedback**: UI-Buttons für Correct/Incorrect/Unsure/Custom
+- **Self-Evaluation**: Automatische Confidence-Schätzung
+- **Real-time Updates**: Strategy Stats werden sofort aktualisiert
+
+### Performance Optimization
+- **Activation Maps Cache**: TTL 10min, maxsize 100
+- **Semantic Neighbors Cache**: Session-based, maxsize 500
+- **Strategy Stats Cache**: Dual-Cache (Stats + Patterns)
+- **Neo4j Indexes**: relation_confidence, relation_context (auto-created)
+
+---
+
+*Letzte Aktualisierung: 2025-11-08* 

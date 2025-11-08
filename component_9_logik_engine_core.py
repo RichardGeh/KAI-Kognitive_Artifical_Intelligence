@@ -19,8 +19,6 @@ try:
     PROBABILISTIC_AVAILABLE = True
 except ImportError:
     PROBABILISTIC_AVAILABLE = False
-    import logging
-
     logging.getLogger(__name__).warning(
         "ProbabilisticEngine nicht verfügbar - läuft im deterministischen Modus"
     )

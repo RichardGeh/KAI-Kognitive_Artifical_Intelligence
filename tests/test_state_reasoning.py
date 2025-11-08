@@ -43,6 +43,9 @@ from component_31_state_space_planner import StateSpacePlanner as Planner31
 
 # component_32 imports (existing tests)
 from component_32_state_reasoning import (
+    Action,
+    State,
+    StateSpacePlanner,
     create_numeric_state,
     create_simple_action,
     manhattan_distance_heuristic,

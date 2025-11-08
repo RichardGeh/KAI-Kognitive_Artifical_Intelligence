@@ -12,6 +12,7 @@ import logging
 
 import pytest
 
+from kai_response_formatter import KaiResponseFormatter
 from kai_worker import KaiWorker
 
 logger = logging.getLogger(__name__)
@@ -46,17 +47,17 @@ class TestWFragenVerarbeitung:
 
             assert (
                 mp.category == MeaningPointCategory.QUESTION
-            ), f"'{query}' sollte als QUESTION erkannt werden"
+            ), "'{query}' sollte als QUESTION erkannt werden"
 
             # Prüfe dass question_word = "wer" und question_type = "person_query"
             assert (
                 mp.arguments.get("question_word") == "wer"
-            ), f"Fragewort sollte 'wer' sein"
+            ), "Fragewort sollte 'wer' sein"
             assert (
                 mp.arguments.get("question_type") == "person_query"
-            ), f"Fragetyp sollte 'person_query' sein"
+            ), "Fragetyp sollte 'person_query' sein"
 
-        logger.info(f"[SUCCESS] Wer-Fragen werden korrekt erkannt")
+        logger.info("[SUCCESS] Wer-Fragen werden korrekt erkannt")
 
     def test_wie_frage_erkennung(self, kai_worker_with_mocks):
         """Testet die Erkennung von Wie-Fragen."""
@@ -84,12 +85,12 @@ class TestWFragenVerarbeitung:
             if mp.category == MeaningPointCategory.QUESTION:
                 assert (
                     mp.arguments.get("question_word") == "wie"
-                ), f"Fragewort sollte 'wie' sein"
+                ), "Fragewort sollte 'wie' sein"
                 assert (
                     mp.arguments.get("question_type") == "process_query"
-                ), f"Fragetyp sollte 'process_query' sein"
+                ), "Fragetyp sollte 'process_query' sein"
 
-        logger.info(f"[SUCCESS] Wie-Fragen werden korrekt erkannt")
+        logger.info("[SUCCESS] Wie-Fragen werden korrekt erkannt")
 
     def test_warum_frage_erkennung(self, kai_worker_with_mocks):
         """Testet die Erkennung von Warum/Wieso/Weshalb-Fragen."""
@@ -116,7 +117,7 @@ class TestWFragenVerarbeitung:
             assert mp.arguments.get("question_word") in ["warum", "wieso", "weshalb"]
             assert mp.arguments.get("question_type") == "reason_query"
 
-        logger.info(f"[SUCCESS] Warum-Fragen werden korrekt erkannt")
+        logger.info("[SUCCESS] Warum-Fragen werden korrekt erkannt")
 
     def test_wann_frage_erkennung(self, kai_worker_with_mocks):
         """Testet die Erkennung von Wann-Fragen."""
@@ -143,7 +144,7 @@ class TestWFragenVerarbeitung:
             assert mp.arguments.get("question_word") == "wann"
             assert mp.arguments.get("question_type") == "time_query"
 
-        logger.info(f"[SUCCESS] Wann-Fragen werden korrekt erkannt")
+        logger.info("[SUCCESS] Wann-Fragen werden korrekt erkannt")
 
     def test_wo_frage_erkennung(self, kai_worker_with_mocks):
         """Testet die Erkennung von Wo-Fragen."""
@@ -166,7 +167,7 @@ class TestWFragenVerarbeitung:
             # Wo-Fragen haben spezielle Logik mit property_name LOCATED_IN
             assert "topic" in mp.arguments or "property_name" in mp.arguments
 
-        logger.info(f"[SUCCESS] Wo-Fragen werden korrekt erkannt")
+        logger.info("[SUCCESS] Wo-Fragen werden korrekt erkannt")
 
     def test_alle_w_woerter_konsistenz(self, kai_worker_with_mocks):
         """Testet dass alle W-Wörter konsistent in allen Listen vorkommen."""
@@ -249,7 +250,7 @@ class TestWFragenVerarbeitung:
             )
             assert "physiker" in process_answer.lower()
 
-            logger.info(f"[SUCCESS] Spezifische Antworten für Fragetypen funktionieren")
+            logger.info("[SUCCESS] Spezifische Antworten für Fragetypen funktionieren")
 
         finally:
             # Cleanup
@@ -318,7 +319,7 @@ class TestWFragenVerarbeitung:
         # Sollte fragetyp-spezifische Rückfrage enthalten
         assert "person" in response.lower() or "wer" in response.lower()
 
-        logger.info(f"[SUCCESS] Wissenslücken erzeugen fragetyp-spezifische Rückfragen")
+        logger.info("[SUCCESS] Wissenslücken erzeugen fragetyp-spezifische Rückfragen")
 
 
 # ============================================================================

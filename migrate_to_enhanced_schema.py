@@ -21,16 +21,15 @@ Features:
 import argparse
 import sys
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict
 
 # Import KAI modules
 from component_1_netzwerk import KonzeptNetzwerk
-from component_48_enhanced_schema import (
-    EnhancedSchemaManager,
-    EnhancedNodeProperties,
-    EnhancedRelationProperties,
-)
 from component_15_logging_config import get_logger
+from component_48_enhanced_schema import (
+    EnhancedRelationProperties,
+    EnhancedSchemaManager,
+)
 
 logger = get_logger(__name__)
 
@@ -62,9 +61,7 @@ class SchemaMigration:
             "errors": 0,
         }
 
-        logger.info(
-            f"SchemaMigration initialisiert (dry_run={dry_run})"
-        )
+        logger.info(f"SchemaMigration initialisiert (dry_run={dry_run})")
 
     # ==================== STEP 1: MIGRATE NODES ====================
 
@@ -292,12 +289,13 @@ class SchemaMigration:
                 f"✓ Typical Relations Aggregation abgeschlossen: "
                 f"{self.stats['typical_relations_updated']} nodes"
             )
-            return {"typical_relations_updated": self.stats["typical_relations_updated"]}
+            return {
+                "typical_relations_updated": self.stats["typical_relations_updated"]
+            }
 
         except Exception as e:
             logger.error(
-                f"Fehler bei Typical Relations Aggregation: {e}",
-                exc_info=True
+                f"Fehler bei Typical Relations Aggregation: {e}", exc_info=True
             )
             self.stats["errors"] += 1
 
@@ -305,7 +303,9 @@ class SchemaMigration:
             logger.info("Versuche Aggregation ohne apoc...")
             return self._aggregate_typical_relations_fallback(batch_size)
 
-    def _aggregate_typical_relations_fallback(self, batch_size: int = 50) -> Dict[str, int]:
+    def _aggregate_typical_relations_fallback(
+        self, batch_size: int = 50
+    ) -> Dict[str, int]:
         """Fallback für Aggregation ohne APOC."""
         try:
             import json
@@ -351,7 +351,9 @@ class SchemaMigration:
                 f"✓ Typical Relations Aggregation (Fallback) abgeschlossen: "
                 f"{self.stats['typical_relations_updated']} nodes"
             )
-            return {"typical_relations_updated": self.stats["typical_relations_updated"]}
+            return {
+                "typical_relations_updated": self.stats["typical_relations_updated"]
+            }
 
         except Exception as e:
             logger.error(f"Fehler bei Fallback-Aggregation: {e}", exc_info=True)
@@ -469,7 +471,9 @@ class SchemaMigration:
         logger.info(f"Dauer: {duration:.2f} Sekunden")
         logger.info(f"Nodes migriert: {self.stats['nodes_migrated']}")
         logger.info(f"Relations migriert: {self.stats['relations_migrated']}")
-        logger.info(f"Typical Relations aktualisiert: {self.stats['typical_relations_updated']}")
+        logger.info(
+            f"Typical Relations aktualisiert: {self.stats['typical_relations_updated']}"
+        )
         logger.info(f"Contexts extrahiert: {self.stats['contexts_extracted']}")
         logger.info(f"Fehler: {self.stats['errors']}")
 
