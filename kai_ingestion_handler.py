@@ -8,9 +8,13 @@ Verantwortlichkeiten:
 - Episode-Tracking für Wissensherkunft
 - Pattern-Matching mit Prototypen
 - Word Usage Tracking (Kontext-Fragmente und Wortverbindungen)
+- Parallele Batch-Verarbeitung für große Textmengen
 """
 import logging
+import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
 
 from component_1_netzwerk import KonzeptNetzwerk
@@ -238,21 +242,27 @@ class KaiIngestionHandler:
         return stats
 
     def ingest_text_large(
-        self, text: str, chunk_size: int = 100, progress_callback=None
+        self,
+        text: str,
+        chunk_size: int = 100,
+        progress_callback=None,
+        max_workers: int = None,
     ) -> Dict[str, int]:
         """
-        PERFORMANCE-OPTIMIERUNG: Batch-Processing für große Textmengen.
+        PERFORMANCE-OPTIMIERUNG: Batch-Processing für große Textmengen mit paralleler Verarbeitung.
 
         Diese Methode ist speziell für große Texte (>100 Sätze) optimiert:
         - Teilt Text in Chunks auf
+        - Verarbeitet Chunks PARALLEL mit ThreadPoolExecutor
         - Verarbeitet jeden Chunk mit Batch-Embeddings
-        - Gibt Progress-Updates via Callback
-        - Optimiert Speicher-Nutzung
+        - Gibt Progress-Updates via Callback (thread-safe)
+        - Optimiert Speicher-Nutzung und CPU-Auslastung
 
         Args:
             text: Der zu ingestierende Text
             chunk_size: Anzahl Sätze pro Chunk (default: 100)
             progress_callback: Optional callback(current, total, stats) für Progress-Updates
+            max_workers: Maximale Anzahl paralleler Worker (default: CPU-Cores * 2)
 
         Returns:
             Dictionary mit Statistiken wie ingest_text()
@@ -303,17 +313,59 @@ class KaiIngestionHandler:
             return total_stats
 
         total_sentences = len(all_sentences)
-        logger.info(
-            f"Starte Batch-Processing: {total_sentences} Sätze in Chunks zu {chunk_size}"
-        )
 
-        # Verarbeite in Chunks
-        for chunk_start in range(0, total_sentences, chunk_size):
-            chunk_end = min(chunk_start + chunk_size, total_sentences)
+        # Prüfe ob parallele Verarbeitung aktiviert ist
+        parallel_enabled = config.parallel_processing_enabled
+
+        # Bestimme Worker-Anzahl aus Config oder Parameter
+        if max_workers is None:
+            max_workers = config.parallel_processing_max_workers
+
+        # Auto-detect wenn immer noch None
+        if max_workers is None:
+            max_workers = min(
+                os.cpu_count() * 2, 8
+            )  # Max 8 Worker um Overhead zu vermeiden
+
+        # Log Processing-Mode
+        if parallel_enabled and max_workers > 1:
+            logger.info(
+                f"Starte Batch-Processing: {total_sentences} Sätze in Chunks zu {chunk_size} "
+                f"(PARALLELE Verarbeitung mit {max_workers} Workers)"
+            )
+        else:
+            logger.info(
+                f"Starte Batch-Processing: {total_sentences} Sätze in Chunks zu {chunk_size} "
+                f"(SEQUENZIELLE Verarbeitung)"
+            )
+            parallel_enabled = False  # Force sequential if only 1 worker
+
+        # Thread-safe Lock für Statistik-Updates
+        stats_lock = threading.Lock()
+        sentences_processed = 0
+
+        # Erstelle Chunk-Liste mit (start, end) Tupeln
+        chunk_ranges = [
+            (i, min(i + chunk_size, total_sentences))
+            for i in range(0, total_sentences, chunk_size)
+        ]
+
+        def process_chunk_wrapper(chunk_range):
+            """
+            Wrapper-Funktion für parallele Chunk-Verarbeitung.
+
+            Args:
+                chunk_range: Tuple (start, end) für Satz-Indizes
+
+            Returns:
+                Tuple (chunk_end, chunk_stats)
+            """
+            chunk_start, chunk_end = chunk_range
             chunk_sentences = all_sentences[chunk_start:chunk_end]
+            chunk_num = chunk_start // chunk_size + 1
 
             logger.debug(
-                f"Verarbeite Chunk {chunk_start // chunk_size + 1}: Sätze {chunk_start}-{chunk_end}"
+                f"[Worker] Verarbeite Chunk {chunk_num}: Sätze {chunk_start}-{chunk_end}"
             )
 
             # BATCH-EMBEDDING für Chunk
@@ -322,7 +374,9 @@ class KaiIngestionHandler:
                     chunk_sentences
                 )
             except Exception as e:
-                logger.warning(f"Batch-Embedding für Chunk fehlgeschlagen: {e}")
+                logger.warning(
+                    f"Batch-Embedding für Chunk {chunk_num} fehlgeschlagen: {e}"
+                )
                 sentence_embeddings = [None] * len(chunk_sentences)
 
             # Verarbeite Chunk
@@ -330,19 +384,82 @@ class KaiIngestionHandler:
                 chunk_sentences, sentence_embeddings, episode_id
             )
 
-            # Aktualisiere Gesamtstatistiken
-            total_stats["facts_created"] += chunk_stats["facts_created"]
-            total_stats["learned_patterns"] += chunk_stats["learned_patterns"]
-            total_stats["fallback_patterns"] += chunk_stats["fallback_patterns"]
-            total_stats["fragments_stored"] += chunk_stats.get("fragments_stored", 0)
-            total_stats["connections_stored"] += chunk_stats.get(
-                "connections_stored", 0
-            )
-            total_stats["chunks_processed"] += 1
+            return (chunk_end, chunk_stats)
 
-            # Progress Callback
-            if progress_callback:
-                progress_callback(chunk_end, total_sentences, total_stats)
+        # VERARBEITUNG: Parallel oder Sequenziell
+        if parallel_enabled and max_workers > 1:
+            # PARALLEL-VERARBEITUNG mit ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit alle Chunks
+                future_to_chunk = {
+                    executor.submit(process_chunk_wrapper, chunk_range): chunk_range
+                    for chunk_range in chunk_ranges
+                }
+
+                # Verarbeite Ergebnisse sobald sie fertig sind
+                for future in as_completed(future_to_chunk):
+                    chunk_range = future_to_chunk[future]
+                    try:
+                        chunk_end, chunk_stats = future.result()
+
+                        # Thread-safe Update der Gesamtstatistiken
+                        with stats_lock:
+                            total_stats["facts_created"] += chunk_stats["facts_created"]
+                            total_stats["learned_patterns"] += chunk_stats[
+                                "learned_patterns"
+                            ]
+                            total_stats["fallback_patterns"] += chunk_stats[
+                                "fallback_patterns"
+                            ]
+                            total_stats["fragments_stored"] += chunk_stats.get(
+                                "fragments_stored", 0
+                            )
+                            total_stats["connections_stored"] += chunk_stats.get(
+                                "connections_stored", 0
+                            )
+                            total_stats["chunks_processed"] += 1
+                            sentences_processed = chunk_end
+
+                            # Progress Callback (thread-safe)
+                            if progress_callback:
+                                progress_callback(
+                                    sentences_processed, total_sentences, total_stats
+                                )
+
+                    except Exception as e:
+                        chunk_start, chunk_end = chunk_range
+                        logger.error(
+                            f"Fehler bei Chunk-Verarbeitung (Sätze {chunk_start}-{chunk_end}): {e}",
+                            exc_info=True,
+                        )
+        else:
+            # SEQUENZIELLE VERARBEITUNG (Fallback)
+            for chunk_range in chunk_ranges:
+                try:
+                    chunk_end, chunk_stats = process_chunk_wrapper(chunk_range)
+
+                    # Update Gesamtstatistiken
+                    total_stats["facts_created"] += chunk_stats["facts_created"]
+                    total_stats["learned_patterns"] += chunk_stats["learned_patterns"]
+                    total_stats["fallback_patterns"] += chunk_stats["fallback_patterns"]
+                    total_stats["fragments_stored"] += chunk_stats.get(
+                        "fragments_stored", 0
+                    )
+                    total_stats["connections_stored"] += chunk_stats.get(
+                        "connections_stored", 0
+                    )
+                    total_stats["chunks_processed"] += 1
+
+                    # Progress Callback
+                    if progress_callback:
+                        progress_callback(chunk_end, total_sentences, total_stats)
+
+                except Exception as e:
+                    chunk_start, chunk_end = chunk_range
+                    logger.error(
+                        f"Fehler bei Chunk-Verarbeitung (Sätze {chunk_start}-{chunk_end}): {e}",
+                        exc_info=True,
+                    )
 
         # Logging der Statistiken
         logger.info(

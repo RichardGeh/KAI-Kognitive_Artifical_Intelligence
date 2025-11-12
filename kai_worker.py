@@ -11,7 +11,7 @@ Verantwortlichkeiten (REFACTORED):
 import logging
 from typing import Dict
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 
 from component_1_netzwerk import KonzeptNetzwerk
 from component_4_goal_planner import GoalPlanner
@@ -73,6 +73,10 @@ class KaiSignals(QObject):
     Diese bleiben zentral im Worker, da sie UI-Koordination betreffen.
     """
 
+    # Input signal (from UI to Worker)
+    query_submitted = Signal(str)  # User query to process
+
+    # Output signals (from Worker to UI)
     clear_goals = Signal()
     set_main_goal = Signal(str)
     add_sub_goal = Signal(str, str)
@@ -199,6 +203,10 @@ class KaiWorker(QObject):
             self.is_initialized_successfully = True
             logger.info("KAI Worker & alle Subsysteme erfolgreich initialisiert.")
 
+            # Connect query_submitted signal to process_query slot
+            self.signals.query_submitted.connect(self.process_query)
+            logger.info("Query processing signal connected")
+
             if not self.netzwerk.get_all_extraction_rules():
                 logger.critical("!!! KEINE EXTRAKTIONSREGELN GEFUNDEN !!!")
 
@@ -234,9 +242,10 @@ class KaiWorker(QObject):
         """
         return self.ingestion_handler.ingest_text(text)
 
+    @Slot(str)
     def process_query(self, query: str):
         """
-        Haupteinstiegspunkt für Benutzereingaben.
+        Haupteinstiegspunkt für Benutzereingaben (läuft im Worker-Thread).
 
         Orchestriert den gesamten Query-Processing-Flow:
         1. Prüfe auf aktiven Kontext (Multi-Turn-Dialog)

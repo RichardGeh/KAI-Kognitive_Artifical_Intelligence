@@ -1,4 +1,5 @@
 # main_ui_graphical.py
+import logging
 import sys
 from typing import Dict
 
@@ -34,6 +35,9 @@ from kai_exceptions import KAIException, get_user_friendly_message
 from kai_worker import KaiWorker
 from logging_ui import LogViewerWindow
 from settings_ui import SettingsDialog
+from test_runner_ui import TestRunnerWindow
+
+logger = logging.getLogger(__name__)
 
 # PHASE 3.4 (User Feedback Loop)
 try:
@@ -117,8 +121,8 @@ class PlanMonitor(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.sub_goal_labels: Dict[str, QLabel] = {}
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         self.main_goal_label = QLabel("Warte auf Aufgabe...")
         self.main_goal_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -138,8 +142,8 @@ class PlanMonitor(QWidget):
         self.scroll_area.setWidget(sub_goal_widget)
         self.scroll_area.setVisible(True)  # Immer sichtbar
 
-        self.layout.addWidget(self.main_goal_label)
-        self.layout.addWidget(self.scroll_area)
+        layout.addWidget(self.main_goal_label)
+        layout.addWidget(self.scroll_area)
 
     @Slot()
     def clear_goals(self):
@@ -193,8 +197,8 @@ class TaskDisplay(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         self.main_goal_label = QLabel("Warte auf Aufgabe...")
         self.main_goal_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -223,8 +227,8 @@ class TaskDisplay(QWidget):
         self.scroll_area.setMaximumHeight(120)
         self.scroll_area.setVisible(False)
 
-        self.layout.addWidget(self.main_goal_label)
-        self.layout.addWidget(self.scroll_area)
+        layout.addWidget(self.main_goal_label)
+        layout.addWidget(self.scroll_area)
 
         self.main_goal_label.mousePressEvent = self.toggle_sub_goals
 
@@ -269,7 +273,7 @@ class ChatInterface(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
 
         self.history = QTextEdit()
         self.history.setReadOnly(True)
@@ -378,17 +382,13 @@ class ChatInterface(QWidget):
         self.feedback_widget = self._create_feedback_widget()
         self.current_answer_id = None  # Track aktuellen Answer für Feedback
 
-        self.layout.addWidget(self.history)
-        self.layout.addWidget(self.file_progress_label)  # Progress Label
-        self.layout.addWidget(self.file_progress_bar)  # Progress Bar
-        self.layout.addWidget(
-            self.feedback_widget
-        )  # Feedback-Buttons (dynamisch ein/aus)
-        self.layout.addWidget(
-            self.context_label
-        )  # Context-Label zwischen History und Input
-        self.layout.addWidget(self.input_text)  # Mehrzeiliges Eingabefeld
-        self.layout.addLayout(controls_layout)  # Datei-Button + Checkbox
+        layout.addWidget(self.history)
+        layout.addWidget(self.file_progress_label)  # Progress Label
+        layout.addWidget(self.file_progress_bar)  # Progress Bar
+        layout.addWidget(self.feedback_widget)  # Feedback-Buttons (dynamisch ein/aus)
+        layout.addWidget(self.context_label)  # Context-Label zwischen History und Input
+        layout.addWidget(self.input_text)  # Mehrzeiliges Eingabefeld
+        layout.addLayout(controls_layout)  # Datei-Button + Checkbox
 
     def _create_feedback_widget(self):
         """
@@ -582,9 +582,9 @@ class ChatInterface(QWidget):
             if not self.file_progress_bar.isVisible():
                 self.file_progress_bar.setVisible(True)
                 self.file_progress_label.setVisible(True)
-                # Force repaint für sofortiges visuelles Feedback
-                self.file_progress_bar.repaint()
-                self.file_progress_label.repaint()
+
+            # Process events to keep UI responsive during file processing
+            QApplication.processEvents()
 
         # Verstecke Progress-Bar wenn fertig
         if current >= total and total > 0:
@@ -637,7 +637,7 @@ class ChatInterface(QWidget):
 class InnerPictureDisplay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
 
         self.label = QLabel("Inneres Bild (Gedankengang)")
         self.label.setStyleSheet(
@@ -650,8 +650,8 @@ class InnerPictureDisplay(QWidget):
             "font-family: Consolas, monospace; color: #2ecc71;"
         )
 
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(self.trace_view)
+        layout.addWidget(self.label)
+        layout.addWidget(self.trace_view)
 
     def update_trace(self, trace_steps: list):
         if not trace_steps:
@@ -694,7 +694,7 @@ class AnalysisWindow(QMainWindow):
             self.proof_tree_widget = ProofTreeWidget()
             self.tab_widget.addTab(self.proof_tree_widget, "Beweisbaum")
         else:
-            self.proof_tree_widget = None
+            self.proof_tree_widget = None  # type: ignore[assignment]
 
         # Tab 3: Episodisches Gedächtnis (only if available)
         if EPISODIC_MEMORY_WIDGET_AVAILABLE:
@@ -703,28 +703,28 @@ class AnalysisWindow(QMainWindow):
                 self.episodic_memory_widget, "Episodisches Gedächtnis"
             )
         else:
-            self.episodic_memory_widget = None
+            self.episodic_memory_widget = None  # type: ignore[assignment]
 
         # Tab 4: Kontext-Tracker (only if available)
         if CONTEXT_VISUALIZATION_AVAILABLE:
             self.context_visualization_widget = ContextVisualizationWidget()
             self.tab_widget.addTab(self.context_visualization_widget, "Kontext-Tracker")
         else:
-            self.context_visualization_widget = None
+            self.context_visualization_widget = None  # type: ignore[assignment]
 
         # Tab 5: Räumliches Grid (only if available)
         if SPATIAL_GRID_WIDGET_AVAILABLE:
             self.spatial_grid_widget = SpatialGridWidget()
             self.tab_widget.addTab(self.spatial_grid_widget, "Räumliches Grid")
         else:
-            self.spatial_grid_widget = None
+            self.spatial_grid_widget = None  # type: ignore[assignment]
 
         # Tab 6: Resonance View (only if available)
         if RESONANCE_VIEW_AVAILABLE:
             self.resonance_view_widget = ResonanceViewWidget()
             self.tab_widget.addTab(self.resonance_view_widget, "Resonance View")
         else:
-            self.resonance_view_widget = None
+            self.resonance_view_widget = None  # type: ignore[assignment]
 
 
 # --- Hauptfenster ---
@@ -842,9 +842,9 @@ class MainWindow(QMainWindow):
                     print(
                         f"[UI] [WARNING] FeedbackHandler konnte nicht initialisiert werden: {e}"
                     )
-                    self.feedback_handler = None
+                    self.feedback_handler = None  # type: ignore[assignment]
             else:
-                self.feedback_handler = None
+                self.feedback_handler = None  # type: ignore[assignment]
 
             # Prüfe ob Worker erfolgreich initialisiert wurde
             if not self.kai_worker.is_initialized_successfully:
@@ -902,6 +902,13 @@ class MainWindow(QMainWindow):
         settings_dialog_action.triggered.connect(self.open_settings_dialog)
         settings_menu.addAction(settings_dialog_action)
 
+        # Test-Runner öffnen (direkter Zugriff)
+        test_runner_action = QAction("&Test-Runner öffnen...", self)
+        test_runner_action.setShortcut("Ctrl+T")
+        test_runner_action.setStatusTip("Öffnet den Test-Runner direkt")
+        test_runner_action.triggered.connect(self.open_test_runner)
+        settings_menu.addAction(test_runner_action)
+
         settings_menu.addSeparator()
 
         # Log-Viewer öffnen
@@ -945,6 +952,11 @@ class MainWindow(QMainWindow):
         if hasattr(settings_dialog, "appearance_tab"):
             settings_dialog.appearance_tab.theme_changed.connect(on_theme_changed)
         settings_dialog.exec()
+
+    def open_test_runner(self):
+        """Öffnet den Test-Runner in einem separaten Fenster"""
+        test_runner_window = TestRunnerWindow(self)
+        test_runner_window.exec()
 
     def open_log_viewer(self):
         """Öffnet das Log-Viewer-Fenster"""
@@ -1038,12 +1050,12 @@ class MainWindow(QMainWindow):
 
     def create_status_bar(self):
         """Erstellt die Statusleiste mit Neo4j-Verbindungsindikator"""
-        self.statusBar = self.statusBar()
+        status_bar = self.statusBar()
 
         # Neo4j-Status-Label
         self.neo4j_status_label = QLabel("Neo4j: Prüfe Verbindung...")
         self.neo4j_status_label.setStyleSheet("padding: 2px 8px; font-size: 11px;")
-        self.statusBar.addPermanentWidget(self.neo4j_status_label)
+        status_bar.addPermanentWidget(self.neo4j_status_label)
 
         # Timer für regelmäßige Status-Updates (alle 30 Sekunden)
         self.status_check_timer = QTimer(self)
@@ -1135,8 +1147,8 @@ class MainWindow(QMainWindow):
             self.chat_interface.add_message("Du", query)
             self.chat_interface.clear_input()
             self.chat_interface.input_text.setEnabled(False)
-            QThread.msleep(20)
-            self.kai_worker.process_query(query)
+            # Emit signal to process query in worker thread (non-blocking)
+            self.kai_worker.signals.query_submitted.emit(query)
 
     @Slot(object)
     def on_kai_finished(self, response_obj):
@@ -1145,8 +1157,8 @@ class MainWindow(QMainWindow):
             # Extract corrected query from trace
             if response_obj.trace and len(response_obj.trace) > 0:
                 corrected_query = response_obj.trace[0]
-                # Reprocess the corrected query automatically
-                self.kai_worker.process_query(corrected_query)
+                # Reprocess the corrected query automatically via signal (non-blocking)
+                self.kai_worker.signals.query_submitted.emit(corrected_query)
                 return  # Don't display "__REPROCESS_QUERY__" or enable input yet
             else:
                 # Fallback: Enable input if no corrected query found

@@ -1016,6 +1016,117 @@ class SpatialReasoner:
         self._query_cache.clear()
         logger.info("Spatial reasoning cache cleared")
 
+    def add_position(
+        self, object_name: str, position: Position, store_in_graph: bool = True
+    ) -> bool:
+        """
+        Store an object's position in the knowledge graph (without requiring a grid).
+
+        This is a simplified position storage for cases where you don't need
+        a full grid structure.
+
+        Args:
+            object_name: Name of the object
+            position: Position (x, y coordinates)
+            store_in_graph: If True, store in Neo4j; if False, just validate
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.netzwerk or not store_in_graph:
+            logger.debug(
+                "Position for %s at %s recorded (not stored in graph)",
+                object_name,
+                position,
+            )
+            return True
+
+        try:
+            # Create object node with position attributes
+            self.netzwerk.create_wort_if_not_exists(
+                lemma=object_name,
+                pos="NOUN",
+                type="SpatialObject",
+                position_x=position.x,
+                position_y=position.y,
+            )
+
+            logger.info("Stored position for %s at %s", object_name, position)
+            return True
+
+        except Exception as e:
+            logger.error(
+                "Failed to store position for %s: %s",
+                object_name,
+                str(e),
+                exc_info=True,
+            )
+            return False
+
+    def add_spatial_relation(
+        self,
+        subject: str,
+        relation_type: SpatialRelationType,
+        target: str,
+        confidence: float = 1.0,
+    ) -> bool:
+        """
+        Store a spatial relation between two objects in the knowledge graph.
+
+        Args:
+            subject: The subject entity (e.g., "house")
+            relation_type: Type of spatial relation (e.g., NORTH_OF, ADJACENT_TO)
+            target: The target entity (e.g., "tree")
+            confidence: Confidence in this relation (0.0-1.0)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.netzwerk:
+            logger.warning("No knowledge graph available for storing spatial relation")
+            return False
+
+        try:
+            # Ensure both entities exist in the graph
+            self.netzwerk.create_wort_if_not_exists(
+                lemma=subject, pos="NOUN", type="SpatialEntity"
+            )
+            self.netzwerk.create_wort_if_not_exists(
+                lemma=target, pos="NOUN", type="SpatialEntity"
+            )
+
+            # Store the spatial relation
+            self.netzwerk.assert_relation(
+                from_lemma=subject,
+                to_lemma=target,
+                relation_type=relation_type.value,
+                confidence=confidence,
+            )
+
+            logger.info(
+                "Stored spatial relation: %s %s %s (confidence: %.2f)",
+                subject,
+                relation_type.value,
+                target,
+                confidence,
+            )
+
+            # Update metrics
+            self._performance_metrics["transitive_inferences"] += 1
+
+            return True
+
+        except Exception as e:
+            logger.error(
+                "Failed to store spatial relation %s %s %s: %s",
+                subject,
+                relation_type.value,
+                target,
+                str(e),
+                exc_info=True,
+            )
+            return False
+
     def register_spatial_extraction_rules(self) -> int:
         """
         Register extraction rules for spatial relations in the knowledge graph.

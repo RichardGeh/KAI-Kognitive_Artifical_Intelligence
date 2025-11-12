@@ -16,6 +16,8 @@ from datetime import datetime
 
 import pytest
 
+# Import from component_9_logik_engine_proof (function was moved there)
+from component_9_logik_engine_proof import create_proof_tree_from_logic_engine
 from component_17_proof_explanation import (
     ProofStep,
     ProofTree,
@@ -23,7 +25,6 @@ from component_17_proof_explanation import (
     StepType,
     _confidence_bar,
     _get_step_icon,
-    create_proof_tree_from_logic_engine,
     export_proof_to_json,
     format_proof_chain,
     format_proof_step,

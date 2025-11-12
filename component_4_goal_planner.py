@@ -112,6 +112,10 @@ class GoalPlanner:
         """
         # REFAKTORISIERT: Verwende Tupel-Pattern für sauberes Matching
         match (category, command):
+            case (MeaningPointCategory.ARITHMETIC_QUESTION, _):
+                # Arithmetische Fragen (Phase Mathematik)
+                return self._plan_for_arithmetic(mp)
+
             case (MeaningPointCategory.QUESTION, _):
                 # Check if it's an episodic memory query
                 query_type = mp.arguments.get("query_type")
@@ -384,6 +388,46 @@ class GoalPlanner:
         ]
 
         logger.debug(f"Plan für Datei-Ingestion erstellt: {file_path}")
+        return plan
+
+    def _plan_for_arithmetic(self, mp: MeaningPoint) -> MainGoal:
+        """
+        Erstellt einen Plan für arithmetische Berechnungen.
+
+        Phase Mathematik: Verarbeitet arithmetische Fragen wie "Was ist 3 + 5?".
+
+        Args:
+            mp: Der MeaningPoint mit ARITHMETIC_QUESTION Kategorie
+
+        Returns:
+            MainGoal mit PERFORM_CALCULATION Typ
+        """
+        query_text = mp.arguments.get("query_text", mp.text_span)
+
+        plan = MainGoal(
+            type=GoalType.PERFORM_CALCULATION,
+            description=f"Berechne: '{query_text}'",
+        )
+        plan.sub_goals = [
+            SubGoal(
+                description="Parse arithmetischen Ausdruck aus Text.",
+                metadata={"query_text": query_text},
+            ),
+            SubGoal(
+                description="Konvertiere Zahlwörter zu Zahlen.",
+                metadata={"query_text": query_text},
+            ),
+            SubGoal(
+                description="Führe arithmetische Operation aus.",
+                metadata={"query_text": query_text},
+            ),
+            SubGoal(
+                description="Formatiere Ergebnis als Zahlwort.",
+                metadata={"query_text": query_text},
+            ),
+        ]
+
+        logger.debug(f"Plan für arithmetische Berechnung erstellt: '{query_text}'")
         return plan
 
     def _plan_for_clarification(self, mp: MeaningPoint) -> MainGoal:

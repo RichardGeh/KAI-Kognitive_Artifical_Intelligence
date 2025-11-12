@@ -21,6 +21,9 @@ class MeaningPointCategory(Enum):
     CONFIRMATION = "Confirmation"
     UNKNOWN = "Unknown"
     COMMAND = "Command"
+    ARITHMETIC_QUESTION = (
+        "ArithmeticQuestion"  # Arithmetische Fragen wie "Was ist 3 + 5?"
+    )
 
 
 class Modality(Enum):
@@ -52,6 +55,9 @@ class GoalType(Enum):
     ANSWER_QUESTION = "Frage beantworten"
     LEARN_KNOWLEDGE = "Wissen lernen"
     PERFORM_TASK = "Aufgabe ausführen"
+    PERFORM_CALCULATION = (
+        "Berechnung durchführen"  # Phase Mathematik: Arithmetische Berechnungen
+    )
     GENERIC_RESPONSE = "Allgemein antworten"
     CLARIFY_INTENT = "Absicht klären"  # Neu: Für niedrige Confidence
     READ_DOCUMENT = "Dokument lesen"  # Phase 3: Datei-Ingestion

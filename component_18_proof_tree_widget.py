@@ -90,12 +90,16 @@ class ProofNodeItem(QGraphicsItem):
     def _update_tooltip(self):
         """Generate tooltip with full explanation"""
         step = self.tree_node.step
+
+        # Formatiere Ausgabe mit mathematischen Symbolen
+        formatted_output = self._format_mathematical_text(step.output)
+
         tooltip_lines = [
             f"<b>Schritt:</b> {step.step_type.value}",
             (
-                f"<b>Ausgabe:</b> {step.output[:100]}..."
-                if len(step.output) > 100
-                else f"<b>Ausgabe:</b> {step.output}"
+                f"<b>Ausgabe:</b> {formatted_output[:100]}..."
+                if len(formatted_output) > 100
+                else f"<b>Ausgabe:</b> {formatted_output}"
             ),
             f"<b>Konfidenz:</b> {step.confidence:.2f}",
             "",
@@ -115,8 +119,9 @@ class ProofNodeItem(QGraphicsItem):
         tooltip_lines.append(f"<b>Quelle:</b> {step.source_component}")
 
         # Enhanced: Timestamp (formatted)
-        timestamp_str = step.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        tooltip_lines.append(f"<b>Zeitstempel:</b> {timestamp_str}")
+        if step.timestamp:
+            timestamp_str = step.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            tooltip_lines.append(f"<b>Zeitstempel:</b> {timestamp_str}")
 
         # Enhanced: Metadata (formatted if present)
         if step.metadata:
@@ -188,8 +193,9 @@ class ProofNodeItem(QGraphicsItem):
             icon,
         )
 
-        # Draw truncated output
-        output_text = step.output[:30] + "..." if len(step.output) > 30 else step.output
+        # Draw truncated output (mit mathematischer Notation)
+        output_text = self._format_mathematical_text(step.output)
+        output_text = output_text[:30] + "..." if len(output_text) > 30 else output_text
         painter.setFont(QFont("Arial", 8))
         painter.drawText(
             QRectF(
@@ -301,8 +307,88 @@ class ProofNodeItem(QGraphicsItem):
             StepType.PROBABILISTIC: "🎲",
             StepType.DECOMPOSITION: "🔀",
             StepType.UNIFICATION: "🔗",
+            StepType.PREMISE: "📋",
+            StepType.ASSUMPTION: "🤔",
+            StepType.CONCLUSION: "✓",
+            StepType.CONTRADICTION: "⚠️",
         }
         return icons.get(step_type, "*")
+
+    def _format_mathematical_text(self, text: str) -> str:
+        """
+        Formatiert Text mit mathematischen Unicode-Symbolen.
+
+        Ersetzt ASCII-Operatoren durch schönere Unicode-Zeichen:
+        - * → ×
+        - / → ÷
+        - != → ≠
+        - <= → ≤
+        - >= → ≥
+        - ** → ^
+        - sqrt → √
+
+        Args:
+            text: Text zum Formatieren
+
+        Returns:
+            Formatierter Text mit mathematischen Symbolen
+        """
+        if not text:
+            return text
+
+        # Mathematische Operatoren
+        replacements = {
+            " * ": " × ",
+            " / ": " ÷ ",
+            "!=": "≠",
+            "<=": "≤",
+            ">=": "≥",
+            " mod ": " % ",
+            "sqrt(": "√(",
+            "**": "^",
+            # Griechische Buchstaben (falls verwendet)
+            "pi": "π",
+            "Pi": "π",
+            "alpha": "α",
+            "beta": "β",
+            "gamma": "γ",
+            "delta": "δ",
+            "theta": "θ",
+            "lambda": "λ",
+            "mu": "μ",
+            "sigma": "σ",
+            "phi": "φ",
+            "omega": "ω",
+            # Mathematische Symbole
+            "infinity": "∞",
+            "sum": "∑",
+            "product": "∏",
+            "integral": "∫",
+            "partial": "∂",
+            "nabla": "∇",
+            "element_of": "∈",
+            "not_element_of": "∉",
+            "subset": "⊂",
+            "superset": "⊃",
+            "union": "∪",
+            "intersection": "∩",
+            "empty_set": "∅",
+            "for_all": "∀",
+            "exists": "∃",
+            "therefore": "∴",
+            "because": "∵",
+            "approximately": "≈",
+            "equivalent": "≡",
+            "not_equal": "≠",
+            "less_equal": "≤",
+            "greater_equal": "≥",
+        }
+
+        formatted = text
+        for old, new in replacements.items():
+            formatted = formatted.replace(old, new)
+
+        return formatted
 
     def _draw_diamond(self, painter: QPainter):
         """Draw diamond shape"""

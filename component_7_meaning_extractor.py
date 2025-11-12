@@ -104,7 +104,21 @@ class MeaningPointExtractor:
                 )
                 return command_mps
 
-            # PHASE 1.5: Auto-Erkennung von Definitionen (deklarative Aussagen)
+            # PHASE 1.5: Auto-Erkennung von arithmetischen Fragen
+            # Muss VOR Definitions-Erkennung erfolgen (wegen "sind" in "10 durch 2 sind...")
+            arithmetic_mps = self._detect_arithmetic_question(text, doc)
+            if arithmetic_mps:
+                logger.info(
+                    "Arithmetische Frage erkannt",
+                    extra={
+                        "cue": arithmetic_mps[0].cue,
+                        "category": arithmetic_mps[0].category.name,
+                        "confidence": arithmetic_mps[0].confidence,
+                    },
+                )
+                return arithmetic_mps
+
+            # PHASE 1.6: Auto-Erkennung von Definitionen (deklarative Aussagen)
             # Dies muss vor dem Vektor-Matching erfolgen, da es spezifischer ist
             definition_mps = self._detect_declarative_statements(text, doc)
             if definition_mps:
@@ -767,6 +781,96 @@ class MeaningPointExtractor:
 
         except Exception as e:
             logger.error(f"Fehler bei Deklaration-Erkennung: {e}", exc_info=True)
+            return []
+
+    def _detect_arithmetic_question(self, text: str, doc: Doc) -> list[MeaningPoint]:
+        """
+        Erkennt arithmetische Fragen automatisch.
+
+        Unterstützte Muster:
+        - "Was ist 3 + 5?" -> 0.95
+        - "Wie viel ist 7 mal 8?" -> 0.93
+        - "Wieviel sind 10 durch 2?" -> 0.92
+        - "Berechne 15 minus 6" -> 0.90
+        - "Was ist drei plus fünf?" -> 0.95 (Zahlwörter)
+
+        Args:
+            text: Der zu analysierende Text
+            doc: spaCy Doc für linguistische Analyse
+
+        Returns:
+            Liste mit einem ARITHMETIC_QUESTION MeaningPoint oder leere Liste
+        """
+        try:
+            text_lower = text.lower().strip()
+
+            # Arithmetische Trigger-Wörter (Operatoren)
+            arithmetic_operators = [
+                "plus",
+                "minus",
+                "mal",
+                "geteilt",
+                "durch",
+                "+",
+                "-",
+                "*",
+                "/",
+                "×",
+                "÷",
+                "multipliziert",
+                "addiert",
+                "subtrahiert",
+                "dividiert",
+            ]
+
+            # Frage-Trigger
+            question_triggers = [
+                "was ist",
+                "wie viel",
+                "wieviel",
+                "wie viele",
+                "berechne",
+                "rechne",
+                "errechne",
+                "berechnen",
+            ]
+
+            # Prüfe auf arithmetische Operatoren
+            has_arithmetic = any(op in text_lower for op in arithmetic_operators)
+
+            # Prüfe auf Frage-Trigger
+            has_question = any(trigger in text_lower for trigger in question_triggers)
+
+            # Wenn beides vorhanden: Hohe Confidence
+            if has_arithmetic and has_question:
+                confidence = 0.95
+            elif has_arithmetic and text.endswith("?"):
+                confidence = 0.90
+            elif has_arithmetic:
+                confidence = 0.80
+            else:
+                # Keine arithmetische Frage erkannt
+                return []
+
+            logger.debug(
+                f"Arithmetische Frage erkannt: '{text}' (confidence={confidence})"
+            )
+
+            return [
+                self._create_meaning_point(
+                    category=MeaningPointCategory.ARITHMETIC_QUESTION,
+                    cue="auto_detect_arithmetic",
+                    text_span=text,
+                    confidence=confidence,
+                    arguments={
+                        "query_text": text,
+                        "auto_detected": True,
+                    },
+                )
+            ]
+
+        except Exception as e:
+            logger.error(f"Fehler bei Arithmetik-Erkennung: {e}", exc_info=True)
             return []
 
     def _extract_with_heuristics(self, doc: Doc) -> list[MeaningPoint]:

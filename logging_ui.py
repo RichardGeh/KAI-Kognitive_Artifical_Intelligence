@@ -84,8 +84,8 @@ class LoggingSettingsDialog(QDialog):
 
         console_label = QLabel("Log-Level für Konsolen-Ausgabe:")
         self.console_level_combo = QComboBox()
-        self.console_level_combo.addItems(self.LOG_LEVELS.keys())
-        self.console_level_combo.setCurrentText(self.current_settings["console_level"])
+        self.console_level_combo.addItems(list(self.LOG_LEVELS.keys()))
+        self.console_level_combo.setCurrentText(str(self.current_settings["console_level"]))
 
         console_layout.addWidget(console_label)
         console_layout.addWidget(self.console_level_combo)
@@ -97,8 +97,8 @@ class LoggingSettingsDialog(QDialog):
 
         file_label = QLabel("Log-Level für Datei-Ausgabe:")
         self.file_level_combo = QComboBox()
-        self.file_level_combo.addItems(self.LOG_LEVELS.keys())
-        self.file_level_combo.setCurrentText(self.current_settings["file_level"])
+        self.file_level_combo.addItems(list(self.LOG_LEVELS.keys()))
+        self.file_level_combo.setCurrentText(str(self.current_settings["file_level"]))
 
         file_info_label = QLabel(
             f"Log-Dateien werden gespeichert in:\n{LOG_DIR.absolute()}"
@@ -118,7 +118,7 @@ class LoggingSettingsDialog(QDialog):
         perf_layout = QVBoxLayout()
 
         self.perf_checkbox = QCheckBox("Performance-Metriken in separate Datei loggen")
-        self.perf_checkbox.setChecked(self.current_settings["performance_logging"])
+        self.perf_checkbox.setChecked(bool(self.current_settings["performance_logging"]))
 
         perf_info_label = QLabel(
             "Performance-Logs enthalten Zeitstempel für kritische Operationen.\n"
@@ -180,9 +180,9 @@ class LoggingSettingsDialog(QDialog):
 
         # Logging neu konfigurieren
         setup_logging(
-            console_level=self.LOG_LEVELS[new_settings["console_level"]],
-            file_level=self.LOG_LEVELS[new_settings["file_level"]],
-            enable_performance_logging=new_settings["performance_logging"],
+            console_level=self.LOG_LEVELS[str(new_settings["console_level"])],
+            file_level=self.LOG_LEVELS[str(new_settings["file_level"])],
+            enable_performance_logging=bool(new_settings["performance_logging"]),
         )
 
         self.current_settings = new_settings
@@ -488,7 +488,7 @@ if __name__ == "__main__":
 
     from PySide6.QtWidgets import QApplication
 
-    from component_15_logging_config import get_logger, setup_logging
+    from component_15_logging_config import get_logger
 
     # Initialisiere Logging
     setup_logging()

@@ -9,7 +9,7 @@ Verantwortlichkeiten:
 """
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 from component_5_linguistik_strukturen import (
     ContextAction,
@@ -1229,7 +1229,7 @@ class FileReaderStrategy(SubGoalStrategy):
                 f"{stats['facts_created']} Fakten gelernt"
             )
             logger.info(progress_msg)
-            # Emit file progress signal
+            # Emit file progress signal (UI will process events automatically)
             self.worker.signals.file_progress_update.emit(current, total, progress_msg)
 
             # Emittiere Signal für UI
@@ -1237,12 +1237,6 @@ class FileReaderStrategy(SubGoalStrategy):
                 self.worker.signals, "progress_update"
             ):
                 self.worker.signals.progress_update.emit(progress_msg)
-
-            # WICHTIG: Gib dem UI-Thread Zeit zum Aktualisieren
-            # Das verhindert UI-Freezing während der Batch-Verarbeitung
-            from PySide6.QtWidgets import QApplication
-
-            QApplication.processEvents()
 
         try:
             logger.info(f"Starte Ingestion von {file_name} (Batch-Processing)...")
@@ -1253,11 +1247,12 @@ class FileReaderStrategy(SubGoalStrategy):
                 0, 100, f"Starte Verarbeitung von {file_name}..."
             )
 
-            # BATCH-PROCESSING mit Progress-Tracking
+            # BATCH-PROCESSING mit Progress-Tracking und PARALLELER VERARBEITUNG
             stats = ingestion_handler.ingest_text_large(
                 text=extracted_text,
-                chunk_size=100,  # 100 Sätze pro Chunk
+                chunk_size=50,  # 50 Sätze pro Chunk für häufigere UI-Updates
                 progress_callback=progress_callback,
+                max_workers=None,  # Auto-detect: CPU-Cores * 2
             )
 
             logger.info(
@@ -1485,11 +1480,14 @@ class SpatialReasoningStrategy(SubGoalStrategy):
         """
         from component_17_proof_explanation import ProofStep, StepType
         from component_42_spatial_reasoning import (
-            Grid2D,
+            Grid,
             Position,
-            SpatialReasoningEngine,
+            SpatialReasoner,
             SpatialRelationType,
         )
+
+        # Create spatial engine
+        spatial_engine = SpatialReasoner(self.worker.netzwerk)
 
         entities = context.get("entities", [])
         positions = context.get("positions", {})
@@ -1510,9 +1508,6 @@ class SpatialReasoningStrategy(SubGoalStrategy):
         proof_step = None
 
         try:
-            # Erstelle SpatialReasoningEngine
-            spatial_engine = SpatialReasoningEngine()
-
             # FALL 1: Grid-basiertes Modell
             if spatial_query_type == "grid_query":
                 grid_entity = entities[0]
@@ -1521,7 +1516,7 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                 rows = grid_config.get("rows", 8)
                 cols = grid_config.get("cols", 8)
 
-                grid = Grid2D(rows=rows, cols=cols)
+                grid = Grid(name=f"grid_{rows}x{cols}", width=cols, height=rows)
 
                 logger.info(f"Grid-Modell erstellt: {rows}x{cols}")
 
@@ -1555,6 +1550,7 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                 position_inputs = []
                 for obj_name, pos_data in positions.items():
                     pos = Position(pos_data["x"], pos_data["y"])
+                    # Store position in knowledge graph
                     spatial_engine.add_position(obj_name, pos)
                     position_inputs.append(
                         f"{obj_name} @ ({pos_data['x']}, {pos_data['y']})"
@@ -1595,7 +1591,8 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                 for rel in relations:
                     try:
                         rel_type = SpatialRelationType[rel["relation"].upper()]
-                        spatial_engine.add_relation(
+                        # Store spatial relation in knowledge graph
+                        spatial_engine.add_spatial_relation(
                             rel["subject"], rel_type, rel["target"]
                         )
                         relation_inputs.append(
@@ -1701,7 +1698,7 @@ class SpatialReasoningStrategy(SubGoalStrategy):
             Tuple (success, {"constraint_solution": ..., "satisfiable": ...})
         """
         from component_17_proof_explanation import ProofStep, StepType
-        from component_29_constraint_reasoning import ConstraintReasoningEngine
+        from component_29_constraint_reasoning import ConstraintSolver
 
         spatial_engine = context.get("spatial_engine")
         model_type = context.get("model_type")
@@ -1720,7 +1717,7 @@ class SpatialReasoningStrategy(SubGoalStrategy):
         try:
             # Für Relations-basierte Queries: Nutze CSP-Solver
             if model_type == "relations":
-                csp_engine = ConstraintReasoningEngine()
+                csp_engine = ConstraintSolver()
 
                 # Hole alle Relationen vom SpatialEngine
                 # und formuliere sie als CSP
@@ -1767,25 +1764,27 @@ class SpatialReasoningStrategy(SubGoalStrategy):
         self, context: Dict[str, Any]
     ) -> Tuple[bool, Dict[str, Any]]:
         """
-        Plant räumliche Aktionen mittels State-Space-Planner.
+        Plant räumliche Aktionen mittels Spatial Reasoner's A* pathfinding.
 
         Args:
-            context: Kontext mit spatial_engine, model_type
+            context: Kontext mit spatial_engine, spatial_model, model_type
 
         Returns:
             Tuple (success, {"plan": ..., "plan_length": ...})
         """
-        from component_31_state_space_planner import Action, State, StateSpacePlanner
+        from component_17_proof_explanation import ProofStep, StepType
 
         model_type = context.get("model_type")
+        spatial_engine = context.get("spatial_engine")
+        spatial_model = context.get("spatial_model")
 
-        if model_type != "path_finding":
-            # Kein Planning benötigt
+        if model_type != "grid" or not spatial_model or not spatial_engine:
+            # Kein Planning benötigt (nur für Grid-basiertes pathfinding)
             return True, {"plan": None, "plan_length": 0}
 
         start_position = context.get("start_position")
         goal_position = context.get("goal_position")
-        obstacles = context.get("obstacles", [])
+        allow_diagonal = context.get("allow_diagonal", False)
 
         if not start_position or not goal_position:
             return False, {"error": "Start- oder Ziel-Position fehlt"}
@@ -1797,62 +1796,26 @@ class SpatialReasoningStrategy(SubGoalStrategy):
             data={
                 "start": str(start_position),
                 "goal": str(goal_position),
-                "obstacle_count": len(obstacles),
+                "allow_diagonal": allow_diagonal,
             },
         )
 
         try:
-            # Erstelle State-Space-Planner
-            planner = StateSpacePlanner()
-
-            # Definiere Initial State
-            initial_state = State(
-                name="initial",
-                variables={"position": (start_position.x, start_position.y)},
+            # Use SpatialReasoner's built-in A* pathfinding
+            path = spatial_engine.find_path(
+                grid_name=spatial_model.name,
+                start=start_position,
+                goal=goal_position,
+                allow_diagonal=allow_diagonal,
             )
 
-            # Definiere Goal State
-            goal_state = State(
-                name="goal",
-                variables={"position": (goal_position.x, goal_position.y)},
-            )
-
-            # Definiere mögliche Bewegungs-Aktionen
-            # (Vereinfacht: 4-direktionale Bewegung)
-            actions = []
-            for dx, dy, direction in [
-                (0, 1, "north"),
-                (0, -1, "south"),
-                (1, 0, "east"),
-                (-1, 0, "west"),
-            ]:
-                action = Action(
-                    name=f"move_{direction}",
-                    preconditions=lambda state, dx=dx, dy=dy: self._can_move(
-                        state, dx, dy, obstacles
-                    ),
-                    effects=lambda state, dx=dx, dy=dy: self._apply_move(state, dx, dy),
-                )
-                actions.append(action)
-
-            # Plane mit A*
-            plan_result = planner.plan_astar(
-                initial_state=initial_state,
-                goal_state=goal_state,
-                actions=actions,
-                heuristic=lambda state: self._manhattan_distance(state, goal_position),
-            )
-
-            if plan_result and plan_result.get("plan"):
-                plan = plan_result["plan"]
-                logger.info(f"Pfad gefunden: {len(plan)} Schritte")
+            if path:
+                logger.info(f"Pfad gefunden: {len(path)} Schritte")
 
                 # ProofStep für Planning
-                from component_17_proof_explanation import ProofStep, StepType
-
                 parent_proof_step = context.get("proof_step")
                 proof_step = ProofStep(
-                    step_id=f"spatial_planning_{id(planner)}",
+                    step_id=f"spatial_planning_{id(spatial_engine)}",
                     step_type=StepType.SPATIAL_PLANNING,
                     inputs=[
                         (
@@ -1861,27 +1824,26 @@ class SpatialReasoningStrategy(SubGoalStrategy):
                             else "Path-Finding-Modell"
                         )
                     ],
-                    output=f"Pfad gefunden mit {len(plan)} Schritten (Kosten: {plan_result.get('cost', 0)})",
+                    output=f"Pfad gefunden mit {len(path)} Schritten",
                     confidence=1.0,
                     explanation_text=f"A*-Algorithmus fand einen optimalen Pfad von {start_position} nach {goal_position}.",
                     parent_steps=(
                         [parent_proof_step.step_id] if parent_proof_step else []
                     ),
                     metadata={
-                        "algorithm": "A* (State-Space Planning)",
+                        "algorithm": "A* (Spatial Reasoning)",
                         "heuristic": "Manhattan-Distanz",
-                        "plan_length": len(plan),
-                        "cost": plan_result.get("cost", 0),
+                        "plan_length": len(path),
                         "start": str(start_position),
                         "goal": str(goal_position),
+                        "grid": spatial_model.name,
                     },
                     source_component="spatial_reasoning",
                 )
 
                 return True, {
-                    "plan": plan,
-                    "plan_length": len(plan),
-                    "cost": plan_result.get("cost", 0),
+                    "plan": path,
+                    "plan_length": len(path),
                     "proof_step": proof_step,
                 }
             else:
@@ -1892,7 +1854,7 @@ class SpatialReasoningStrategy(SubGoalStrategy):
 
                 parent_proof_step = context.get("proof_step")
                 proof_step = ProofStep(
-                    step_id=f"spatial_planning_unreachable_{id(planner)}",
+                    step_id=f"spatial_planning_unreachable_{id(spatial_engine)}",
                     step_type=StepType.SPATIAL_PLANNING,
                     inputs=[
                         (
@@ -1924,45 +1886,6 @@ class SpatialReasoningStrategy(SubGoalStrategy):
         except Exception as e:
             logger.error(f"Fehler beim Planning: {e}", exc_info=True)
             return False, {"error": f"Planning fehlgeschlagen: {str(e)}"}
-
-    def _can_move(self, state: Any, dx: int, dy: int, obstacles: List[Any]) -> bool:
-        """Prüft ob Bewegung erlaubt ist (nicht auf Hindernissen)."""
-        current_pos = state.variables.get("position")
-        if not current_pos:
-            return False
-
-        new_x = current_pos[0] + dx
-        new_y = current_pos[1] + dy
-
-        # Prüfe Hindernisse
-        for obs in obstacles:
-            if obs.x == new_x and obs.y == new_y:
-                return False
-
-        return True
-
-    def _apply_move(self, state: Any, dx: int, dy: int) -> Any:
-        """Wendet Bewegung an und gibt neuen State zurück."""
-        from component_31_state_space_planner import State
-
-        current_pos = state.variables.get("position")
-        new_x = current_pos[0] + dx
-        new_y = current_pos[1] + dy
-
-        return State(
-            name=f"pos_{new_x}_{new_y}",
-            variables={"position": (new_x, new_y)},
-        )
-
-    def _manhattan_distance(self, state: Any, goal_position: Any) -> float:
-        """Berechnet Manhattan-Distanz als Heuristik."""
-        current_pos = state.variables.get("position")
-        if not current_pos:
-            return float("inf")
-
-        return abs(current_pos[0] - goal_position.x) + abs(
-            current_pos[1] - goal_position.y
-        )
 
     def _formulate_spatial_answer(
         self, context: Dict[str, Any]
@@ -2174,7 +2097,7 @@ class EpisodicMemoryStrategy(SubGoalStrategy):
         # Verwende den ResponseFormatter
         from kai_response_formatter import KaiResponseFormatter
 
-        formatter = KaiResponseFormatter(confidence_manager=None)
+        formatter = KaiResponseFormatter(feedback_handler=None)
 
         response = formatter.format_episodic_answer(
             episodes=episodes, query_type=query_type, topic=topic
@@ -2396,6 +2319,339 @@ class OrchestratedStrategy(SubGoalStrategy):
 # ============================================================================
 
 
+# ============================================================================
+# ARITHMETIC STRATEGY (Phase Mathematik)
+# ============================================================================
+
+
+class ArithmeticStrategy(SubGoalStrategy):
+    """
+    Strategy für arithmetische Berechnungen (Phase Mathematik).
+
+    Zuständig für:
+    - Parse arithmetischen Ausdruck aus Text
+    - Konvertiere Zahlwörter zu Zahlen
+    - Führe arithmetische Operation aus
+    - Formatiere Ergebnis als Zahlwort
+    """
+
+    def can_handle(self, sub_goal_description: str) -> bool:
+        arithmetic_keywords = [
+            "Parse arithmetischen Ausdruck aus Text",
+            "Konvertiere Zahlwörter zu Zahlen",
+            "Führe arithmetische Operation aus",
+            "Formatiere Ergebnis als Zahlwort",
+        ]
+        return any(kw in sub_goal_description for kw in arithmetic_keywords)
+
+    def execute(
+        self, sub_goal: SubGoal, context: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        try:
+            description = sub_goal.description
+            query_text = sub_goal.metadata.get("query_text", "")
+
+            # Dispatcher für verschiedene Arithmetik-SubGoals
+            if "Parse arithmetischen Ausdruck aus Text" in description:
+                return self._parse_expression(query_text, context)
+            elif "Konvertiere Zahlwörter zu Zahlen" in description:
+                return self._convert_words_to_numbers(context)
+            elif "Führe arithmetische Operation aus" in description:
+                return self._execute_operation(context)
+            elif "Formatiere Ergebnis als Zahlwort" in description:
+                return self._format_result(context)
+
+            return False, {"error": f"Unbekanntes Arithmetik-SubGoal: {description}"}
+
+        except Exception as e:
+            logger.error(f"Fehler in ArithmeticStrategy: {e}", exc_info=True)
+            return False, {"error": str(e)}
+
+    def _parse_expression(
+        self, query_text: str, context: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Parse arithmetischen Ausdruck aus Text.
+
+        Erkennt Muster wie:
+        - "Was ist drei plus fünf?" -> ("+", ["drei", "fünf"])
+        - "Wie viel ist 7 mal 8?" -> ("*", ["7", "8"])
+        """
+        try:
+            import re
+
+            text_lower = query_text.lower().strip()
+
+            # Operator-Mapping
+            operator_patterns = [
+                (r"(\w+)\s*\+\s*(\w+)", "+"),  # 3 + 5
+                (r"(\w+)\s*-\s*(\w+)", "-"),  # 10 - 2
+                (r"(\w+)\s*\*\s*(\w+)", "*"),  # 7 * 8
+                (r"(\w+)\s*/\s*(\w+)", "/"),  # 20 / 4
+                (r"(\w+)\s+plus\s+(\w+)", "+"),  # drei plus fünf
+                (r"(\w+)\s+minus\s+(\w+)", "-"),  # zehn minus zwei
+                (r"(\w+)\s+mal\s+(\w+)", "*"),  # sieben mal acht
+                (r"(\w+)\s+durch\s+(\w+)", "/"),  # zwanzig durch vier
+                (r"(\w+)\s+geteilt\s+durch\s+(\w+)", "/"),  # zehn geteilt durch zwei
+                (
+                    r"(\w+)\s+multipliziert\s+mit\s+(\w+)",
+                    "*",
+                ),  # drei multipliziert mit vier
+                (r"(\w+)\s+addiert\s+mit\s+(\w+)", "+"),  # zwei addiert mit fünf
+                (
+                    r"(\w+)\s+subtrahiert\s+von\s+(\w+)",
+                    "-",
+                ),  # fünf subtrahiert von zehn
+            ]
+
+            for pattern, operator in operator_patterns:
+                match = re.search(pattern, text_lower)
+                if match:
+                    operand1 = match.group(1).strip()
+                    operand2 = match.group(2).strip()
+
+                    logger.debug(f"Parsed expression: {operand1} {operator} {operand2}")
+
+                    return True, {
+                        "operator": operator,
+                        "operand1_word": operand1,
+                        "operand2_word": operand2,
+                        "original_text": query_text,
+                    }
+
+            return False, {
+                "error": f"Konnte keinen Operator in '{query_text}' erkennen"
+            }
+
+        except Exception as e:
+            logger.error(f"Fehler beim Parsen des Ausdrucks: {e}", exc_info=True)
+            return False, {"error": str(e)}
+
+    def _convert_words_to_numbers(
+        self, context: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Konvertiere Zahlwörter zu Zahlen.
+
+        Verwendet component_53_number_language (wenn verfügbar) oder Fallback.
+        """
+        try:
+            operand1_word = context.get("operand1_word", "")
+            operand2_word = context.get("operand2_word", "")
+
+            # PHASE 1: Einfacher Fallback für Zahlen 0-20 (wird später durch component_53 ersetzt)
+            number_map = {
+                "null": 0,
+                "eins": 1,
+                "ein": 1,
+                "zwei": 2,
+                "drei": 3,
+                "vier": 4,
+                "fünf": 5,
+                "sechs": 6,
+                "sieben": 7,
+                "acht": 8,
+                "neun": 9,
+                "zehn": 10,
+                "elf": 11,
+                "zwölf": 12,
+                "dreizehn": 13,
+                "vierzehn": 14,
+                "fünfzehn": 15,
+                "sechzehn": 16,
+                "siebzehn": 17,
+                "achtzehn": 18,
+                "neunzehn": 19,
+                "zwanzig": 20,
+            }
+
+            # Versuche als Zahlwort oder als Zahl zu parsen
+            try:
+                operand1 = (
+                    number_map.get(operand1_word.lower(), None)
+                    if operand1_word.lower() in number_map
+                    else int(operand1_word)
+                )
+            except ValueError:
+                return False, {
+                    "error": f"Kann '{operand1_word}' nicht zu Zahl konvertieren"
+                }
+
+            try:
+                operand2 = (
+                    number_map.get(operand2_word.lower(), None)
+                    if operand2_word.lower() in number_map
+                    else int(operand2_word)
+                )
+            except ValueError:
+                return False, {
+                    "error": f"Kann '{operand2_word}' nicht zu Zahl konvertieren"
+                }
+
+            logger.debug(
+                f"Converted: {operand1_word} -> {operand1}, {operand2_word} -> {operand2}"
+            )
+
+            # Übernehme vorherigen Context und füge Zahlen hinzu
+            result = dict(context)
+            result["operand1"] = operand1
+            result["operand2"] = operand2
+            return True, result
+
+        except Exception as e:
+            logger.error(f"Fehler bei Zahl-Konvertierung: {e}", exc_info=True)
+            return False, {"error": str(e)}
+
+    def _execute_operation(
+        self, context: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Führe arithmetische Operation aus.
+
+        Verwendet component_52_arithmetic_reasoning (wenn verfügbar) oder Fallback.
+        """
+        try:
+            operator = context.get("operator")
+            operand1 = context.get("operand1")
+            operand2 = context.get("operand2")
+
+            if operator is None or operand1 is None or operand2 is None:
+                return False, {"error": "Operator oder Operanden fehlen im Kontext"}
+
+            # PHASE 2: Verwende ArithmeticEngine (mit Proof Tree) wenn verfügbar
+            try:
+                from component_52_arithmetic_reasoning import ArithmeticEngine
+
+                # ArithmeticEngine aus Worker holen oder erstellen
+                if not hasattr(self.worker, "arithmetic_engine"):
+                    self.worker.arithmetic_engine = ArithmeticEngine(
+                        self.worker.netzwerk
+                    )
+                    logger.debug(
+                        "ArithmeticEngine initialisiert (lazy loading in Strategy)"
+                    )
+
+                arithmetic_engine = self.worker.arithmetic_engine
+
+                # Berechnung durchführen
+                arithmetic_result = arithmetic_engine.calculate(
+                    operator, operand1, operand2
+                )
+
+                result_value = arithmetic_result.value
+                proof_tree = arithmetic_result.proof_tree
+                confidence = arithmetic_result.confidence
+
+                logger.debug(
+                    f"Calculated (ArithmeticEngine): {operand1} {operator} {operand2} = {result_value}"
+                )
+
+                # Emittiere Proof Tree an UI
+                if proof_tree and hasattr(self.worker, "signals"):
+                    self.worker.signals.proof_tree_update.emit(proof_tree)
+                    logger.debug(
+                        f"[Proof Tree] Arithmetic ProofTree emittiert: {len(proof_tree.get_all_steps())} Schritte"
+                    )
+
+                # Übernehme vorherigen Context und füge Ergebnis hinzu
+                result = dict(context)
+                result["result_value"] = result_value
+                result["confidence"] = confidence
+                result["proof_tree"] = proof_tree
+                return True, result
+
+            except ImportError:
+                logger.warning(
+                    "ArithmeticEngine nicht verfügbar, verwende Fallback-Berechnung"
+                )
+
+                # FALLBACK: Einfache Berechnung (ohne Proof Tree)
+                if operator == "+":
+                    result_value = operand1 + operand2
+                elif operator == "-":
+                    result_value = operand1 - operand2
+                elif operator == "*":
+                    result_value = operand1 * operand2
+                elif operator == "/":
+                    if operand2 == 0:
+                        return False, {"error": "Division durch Null ist nicht erlaubt"}
+                    result_value = operand1 / operand2
+                else:
+                    return False, {"error": f"Unbekannter Operator: {operator}"}
+
+                logger.debug(
+                    f"Calculated (Fallback): {operand1} {operator} {operand2} = {result_value}"
+                )
+
+                # Übernehme vorherigen Context und füge Ergebnis hinzu
+                result = dict(context)
+                result["result_value"] = result_value
+                result["confidence"] = 1.0  # Fallback: Immer 100% Confidence
+                return True, result
+
+        except Exception as e:
+            logger.error(f"Fehler bei Berechnung: {e}", exc_info=True)
+            return False, {"error": str(e)}
+
+    def _format_result(self, context: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Formatiere Ergebnis als Zahlwort.
+
+        Verwendet component_53_number_language (wenn verfügbar) oder Fallback.
+        """
+        try:
+            result_value = context.get("result_value")
+
+            if result_value is None:
+                return False, {"error": "Ergebnis fehlt im Kontext"}
+
+            # PHASE 1: Einfacher Fallback für Zahlen 0-20 (wird später durch component_53 ersetzt)
+            number_words = {
+                0: "null",
+                1: "eins",
+                2: "zwei",
+                3: "drei",
+                4: "vier",
+                5: "fünf",
+                6: "sechs",
+                7: "sieben",
+                8: "acht",
+                9: "neun",
+                10: "zehn",
+                11: "elf",
+                12: "zwölf",
+                13: "dreizehn",
+                14: "vierzehn",
+                15: "fünfzehn",
+                16: "sechzehn",
+                17: "siebzehn",
+                18: "achtzehn",
+                19: "neunzehn",
+                20: "zwanzig",
+            }
+
+            # Versuche als Zahlwort zu formatieren, sonst als Zahl
+            if isinstance(result_value, float) and result_value.is_integer():
+                result_value = int(result_value)
+
+            if isinstance(result_value, int) and result_value in number_words:
+                result_word = number_words[result_value]
+            else:
+                result_word = str(result_value)
+
+            logger.debug(f"Formatted result: {result_value} -> {result_word}")
+
+            # Übernehme vorherigen Context und füge formatiertes Ergebnis hinzu
+            result = dict(context)
+            result["result_word"] = result_word
+            result["final_answer"] = f"Das Ergebnis ist {result_word}."
+            return True, result
+
+        except Exception as e:
+            logger.error(f"Fehler bei Formatierung: {e}", exc_info=True)
+            return False, {"error": str(e)}
+
+
 class SubGoalExecutor:
     """
     Hauptklasse für Sub-Goal Execution mit Strategy-Dispatching.
@@ -2421,6 +2677,7 @@ class SubGoalExecutor:
             ),  # Orchestrierte Multi-Segment-Verarbeitung (HÖCHSTE PRIORITÄT)
             ConfirmationStrategy(worker),
             ClarificationStrategy(worker),
+            ArithmeticStrategy(worker),  # Arithmetische Berechnungen (Phase Mathematik)
             SpatialReasoningStrategy(worker),  # Räumliches Reasoning (Phase 9)
             EpisodicMemoryStrategy(worker),  # Episodisches Gedächtnis
             FileReaderStrategy(worker),  # Datei-Ingestion (Phase 4)

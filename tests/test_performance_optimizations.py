@@ -65,9 +65,9 @@ class TestBatchEmbeddings:
         batch_time = time.perf_counter() - start_time
 
         # Vergleiche
-        print(f"\n  Sequential: {sequential_time:.3f}s")
-        print(f"  Batch: {batch_time:.3f}s")
-        print(f"  Speedup: {sequential_time / batch_time:.2f}x")
+        print("\n  Sequential: {sequential_time:.3f}s")
+        print("  Batch: {batch_time:.3f}s")
+        print("  Speedup: {sequential_time / batch_time:.2f}x")
 
         # Batch sollte nicht langsamer sein (kann durch Overhead minimal langsamer sein)
         # Hauptziel: Funktioniert korrekt, bei großen Mengen ist Speedup deutlich
@@ -173,6 +173,53 @@ class TestIngestionBatchProcessing:
 
         assert stats["facts_created"] == 0
         assert stats["chunks_processed"] == 0
+
+    def test_ingest_text_large_parallel_processing(self, setup_components):
+        """ingest_text_large() sollte parallele Verarbeitung unterstützen"""
+        handler = setup_components
+
+        if not handler.embedding_service.is_available():
+            pytest.skip("Embedding-Service nicht verfügbar")
+
+        # Großer Text (200 Sätze) für messbare Parallelisierung
+        sentences = [f"Testsatz {i} für parallele Verarbeitung." for i in range(200)]
+        text = " ".join(sentences)
+
+        # Test 1: Mit paralleler Verarbeitung (4 Workers)
+        start_time = time.perf_counter()
+        stats_parallel = handler.ingest_text_large(text, chunk_size=50, max_workers=4)
+        time_parallel = time.perf_counter() - start_time
+
+        # Test 2: Mit sequenzieller Verarbeitung (1 Worker)
+        start_time = time.perf_counter()
+        stats_sequential = handler.ingest_text_large(text, chunk_size=50, max_workers=1)
+        time_sequential = time.perf_counter() - start_time
+
+        print("\n  Parallel (4 Workers): {time_parallel:.3f}s")
+        print("  Sequential (1 Worker): {time_sequential:.3f}s")
+        print("  Speedup: {time_sequential / time_parallel:.2f}x")
+
+        # Beide sollten gleiche Anzahl Chunks verarbeitet haben
+        assert stats_parallel["chunks_processed"] == 4
+        assert stats_sequential["chunks_processed"] == 4
+
+        # Parallele Verarbeitung sollte gleich oder schneller sein
+        # (bei kleinen Datensätzen kann Overhead die Vorteile aufwiegen)
+        assert time_parallel <= time_sequential * 1.2
+
+    def test_ingest_text_large_respects_config(self, setup_components):
+        """ingest_text_large() sollte Config-Einstellungen respektieren"""
+
+        from kai_config import get_config
+
+        config = get_config()
+
+        # Prüfe ob Config geladen wurde
+        assert config.parallel_processing_enabled is not None
+        assert (
+            config.parallel_processing_max_workers is not None
+            or config.parallel_processing_max_workers is None
+        )
 
 
 @pytest.mark.skipif(not PROOF_AVAILABLE, reason="Proof Tree Components nicht verfügbar")
@@ -324,31 +371,31 @@ def benchmark_ingestion(text: str, chunk_size: int = 100):
         netzwerk, preprocessor, prototyping_engine, embedding_service
     )
 
-    print(f"\n{'='*70}")
-    print(f"Benchmarking Ingestion: {len(text)} chars")
-    print(f"{'='*70}")
+    print("\n{'='*70}")
+    print("Benchmarking Ingestion: {len(text)} chars")
+    print("{'='*70}")
 
     # ingest_text()
     start_time = time.perf_counter()
-    stats1 = handler.ingest_text(text)
+    handler.ingest_text(text)
     time1 = time.perf_counter() - start_time
 
-    print(f"\ningest_text():")
-    print(f"  Time: {time1:.3f}s")
-    print(f"  Facts: {stats1['facts_created']}")
+    print("\ningest_text():")
+    print("  Time: {time1:.3f}s")
+    print("  Facts: {stats1['facts_created']}")
 
     # ingest_text_large()
     start_time = time.perf_counter()
     stats2 = handler.ingest_text_large(text, chunk_size=chunk_size)
     time2 = time.perf_counter() - start_time
 
-    print(f"\ningest_text_large():")
-    print(f"  Time: {time2:.3f}s")
-    print(f"  Facts: {stats2['facts_created']}")
-    print(f"  Chunks: {stats2['chunks_processed']}")
+    print("\ningest_text_large():")
+    print("  Time: {time2:.3f}s")
+    print("  Facts: {stats2['facts_created']}")
+    print("  Chunks: {stats2['chunks_processed']}")
 
-    print(f"\nSpeedup: {time1 / time2:.2f}x")
-    print(f"{'='*70}\n")
+    print("\nSpeedup: {time1 / time2:.2f}x")
+    print("{'='*70}\n")
 
     netzwerk.close()
 

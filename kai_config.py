@@ -43,6 +43,9 @@ DEFAULT_CONFIG = {
     "confidence_low_threshold": 0.40,  # Below this: Ask for clarification
     "confidence_medium_threshold": 0.85,  # Below this: Request confirmation
     # Above this: Direct execution
+    # Performance / Parallel Processing
+    "parallel_processing_enabled": True,  # Enable/Disable parallel chunk processing
+    "parallel_processing_max_workers": None,  # None = auto-detect (CPU cores * 2), or set specific number
     # Neo4j Connection
     "neo4j_uri": "bolt://127.0.0.1:7687",
     "neo4j_user": "neo4j",
@@ -171,6 +174,16 @@ class KaiConfig:
     def max_words_to_comma(self) -> int:
         """Max. Wörter bis Komma für Kontext"""
         return int(self.get("max_words_to_comma", 3))
+
+    @property
+    def parallel_processing_enabled(self) -> bool:
+        """Ist parallele Batch-Verarbeitung aktiviert?"""
+        return bool(self.get("parallel_processing_enabled", True))
+
+    @property
+    def parallel_processing_max_workers(self) -> Optional[int]:
+        """Maximale Anzahl paralleler Worker (None = auto-detect)"""
+        return self.get("parallel_processing_max_workers", None)
 
 
 # ============================================================================
