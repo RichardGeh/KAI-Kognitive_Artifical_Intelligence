@@ -76,15 +76,53 @@ class QuestionStrategy(SubGoalStrategy):
         if not topic:
             return False, {"error": "Thema fehlt."}
 
+        # Hole Intent aus Kontext für question_type Check
+        intent = context.get("intent")
+        question_type = intent.arguments.get("question_type") if intent else None
+
         # Tracke Graph-Abfrage
         self.worker.working_memory.add_reasoning_state(
             step_type="fact_retrieval",
             description=f"Suche Fakten über '{topic}' im Wissensgraphen",
-            data={"topic": topic},
+            data={"topic": topic, "question_type": question_type},
         )
 
-        # SCHRITT 1: Direkte Faktenabfrage (effizient, nutzt Cache)
-        fact_data = self.worker.netzwerk.query_facts_with_synonyms(topic)
+        # SCHRITT 1: Spezial-Handling für WER-Fragen (Reverse Lookup!)
+        # Bei "Wer trinkt Brandy?" suchen wir: (person)-[:ASSOCIATED_WITH]->(brandy)
+        if question_type == "person_query":
+            logger.info(
+                f"[WER-Frage] Verwende Reverse Lookup für '{topic}' (suche wer MIT '{topic}' assoziiert ist)"
+            )
+            # Inverse Relations: Finde alle Entitäten, die AUF 'topic' zeigen
+            inverse_facts_raw = (
+                self.worker.netzwerk.query_inverse_relations_with_confidence(topic)
+            )
+
+            # FORMAT-KONVERTIERUNG: Inverse Relations haben Format:
+            # {"ASSOCIATED_WITH": [{"source": "nick", "confidence": 0.9}]}
+            # Aber format_person_answer() erwartet:
+            # {"ASSOCIATED_WITH": ["nick"]}
+            # Konvertiere: Extrahiere "source" aus jedem Dict
+            inverse_facts = {}
+            for rel_type, entries in inverse_facts_raw.items():
+                # Extrahiere nur die "source" (Person/Entität) aus jedem Entry
+                inverse_facts[rel_type] = [entry["source"] for entry in entries]
+
+            # Konvertiere zu fact_data Format
+            fact_data = {
+                "primary_topic": topic,
+                "synonyms": [],
+                "facts": inverse_facts,  # Jetzt im richtigen Format!
+                "sources": {topic: inverse_facts},
+                "bedeutungen": [],
+            }
+
+            logger.info(
+                f"[WER-Frage] Gefunden: {sum(len(v) for v in inverse_facts.values())} inverse Relationen"
+            )
+        else:
+            # SCHRITT 1: Direkte Faktenabfrage (effizient, nutzt Cache)
+            fact_data = self.worker.netzwerk.query_facts_with_synonyms(topic)
 
         _ = (
             bool(fact_data["facts"])

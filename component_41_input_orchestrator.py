@@ -161,6 +161,53 @@ class InputOrchestrator:
         )
         return False
 
+    def is_logic_puzzle(self, text: str, segments: List[InputSegment]) -> bool:
+        """
+        Erkennt ob die Eingabe ein Logik-Rätsel ist.
+
+        Kriterien:
+        - Enthält logische Bedingungen (wenn...dann, oder, und, nie beide)
+        - Endet mit einer Frage
+        - Mehrere Erklärungen vor der Frage
+
+        Args:
+            text: Der vollständige Eingabetext
+            segments: Liste von klassifizierten Segmenten
+
+        Returns:
+            True wenn es ein Logik-Rätsel ist
+        """
+        # Logik-Puzzle-Patterns
+        logic_patterns = [
+            r"\bwenn\s+.+?,?\s+.+?\b",  # "wenn X, dann Y"
+            r"\boder\s+.+?,?\s*aber\s+(?:nie|nicht|niemals)\s+beide",  # XOR
+            r"\beinzeln\s+oder\s+gleichzeitig",  # Individual or simultaneous
+            r"\bentweder\s+.+?\s+oder\s+",  # "entweder X oder Y"
+            r"\bgenau\s+(?:einer|eine)",  # "genau einer"
+        ]
+
+        # Zähle Pattern-Matches
+        pattern_matches = sum(
+            1 for pattern in logic_patterns if re.search(pattern, text, re.IGNORECASE)
+        )
+
+        # Prüfe Segment-Struktur
+        has_multiple_explanations = sum(s.is_explanation() for s in segments) >= 2
+        has_question = any(s.is_question() for s in segments)
+
+        # Logik-Rätsel wenn:
+        # - Mindestens 2 logische Patterns erkannt
+        # - Mehrere Erklärungen + Frage
+        is_puzzle = pattern_matches >= 2 and has_multiple_explanations and has_question
+
+        if is_puzzle:
+            logger.info(
+                f"Logik-Rätsel erkannt: {pattern_matches} Pattern-Matches, "
+                f"{sum(s.is_explanation() for s in segments)} Erklärungen"
+            )
+
+        return is_puzzle
+
     def orchestrate_input(self, text: str) -> Optional[Dict[str, Any]]:
         """
         Orchestriert eine komplexe Eingabe.
@@ -170,6 +217,7 @@ class InputOrchestrator:
             - segments: Liste von InputSegment
             - plan: MainGoal für orchestrierte Verarbeitung
             - metadata: Zusätzliche Informationen
+            - is_logic_puzzle: Bool ob es ein Logik-Rätsel ist
 
             None wenn keine Orchestrierung notwendig
         """
@@ -180,16 +228,21 @@ class InputOrchestrator:
         raw_segments = self._segment_text(text)
         segments = [self.classify_segment(seg) for seg in raw_segments]
 
+        # Prüfe ob es ein Logik-Rätsel ist
+        is_puzzle = self.is_logic_puzzle(text, segments)
+
         # Erstelle orchestrierten Plan
         plan = self._create_orchestrated_plan(segments)
 
         logger.info(
             f"Orchestrierung abgeschlossen: {len(segments)} Segmente verarbeitet"
+            + (", Logik-Rätsel erkannt" if is_puzzle else "")
         )
 
         return {
             "segments": segments,
             "plan": plan,
+            "is_logic_puzzle": is_puzzle,
             "metadata": {
                 "explanation_count": sum(s.is_explanation() for s in segments),
                 "question_count": sum(s.is_question() for s in segments),
@@ -252,6 +305,45 @@ class InputOrchestrator:
 
         return merged
 
+    def _merge_question_words(self, segments: List[str]) -> List[str]:
+        """
+        Merge standalone question words with the following segment.
+
+        Sometimes spaCy splits question words (wer, was, wie, etc.) as separate sentences.
+        This post-processing step merges them with the following segment to keep
+        questions intact.
+
+        Args:
+            segments: List of text segments
+
+        Returns:
+            Merged segments with question words combined
+        """
+        merged = []
+        i = 0
+        while i < len(segments):
+            segment = segments[i]
+            segment_lower = segment.lower().strip()
+
+            # Check if this segment is ONLY a question word (or question word + punctuation)
+            is_lone_question_word = (
+                segment_lower.rstrip("?!.,;: ") in self.question_words
+            )
+
+            # If lone question word and there's a next segment, merge them
+            if is_lone_question_word and i + 1 < len(segments):
+                merged_segment = segment.rstrip() + " " + segments[i + 1]
+                merged.append(merged_segment)
+                i += 2  # Skip next segment as it was merged
+                logger.debug(
+                    f"Merged question word: '{segment}' + '{segments[i-1]}' -> '{merged_segment[:50]}...'"
+                )
+            else:
+                merged.append(segment)
+                i += 1
+
+        return merged
+
     def _segment_text(self, text: str) -> List[str]:
         """
         Segmentiert Text in Sätze mit spaCy's Sentence Tokenizer.
@@ -276,6 +368,9 @@ class InputOrchestrator:
 
                 # Post-processing: Merge abbreviations (like "Dr.") with next segment
                 segments = self._merge_abbreviations(segments)
+
+                # Post-processing: Merge question words with following segment
+                segments = self._merge_question_words(segments)
 
                 logger.debug(f"Text mit spaCy segmentiert: {len(segments)} Segmente")
                 return segments

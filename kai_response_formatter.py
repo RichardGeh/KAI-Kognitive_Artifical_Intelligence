@@ -364,6 +364,18 @@ class KaiResponseFormatter:
             capable_str = ", ".join(facts["CAPABLE_OF"])
             response_parts.append(f"kann {capable_str}")
 
+        # ASSOCIATED_WITH für Assoziationen (wichtig für Reverse Lookup bei WER-Fragen!)
+        # Beispiel: "Wer trinkt Brandy?" -> facts = {"ASSOCIATED_WITH": ["nick"]}
+        if "ASSOCIATED_WITH" in facts:
+            # Für WER-Fragen ist das Topic das Objekt (z.B. "brandy")
+            # und die facts sind die Personen (z.B. ["nick"])
+            persons = facts["ASSOCIATED_WITH"]
+            if len(persons) == 1:
+                return f"{persons[0].capitalize()}"
+            elif len(persons) > 1:
+                persons_str = ", ".join([p.capitalize() for p in persons[:-1]])
+                return f"{persons_str} und {persons[-1].capitalize()}"
+
         # Wenn keine relevanten Fakten gefunden wurden
         if len(response_parts) == 1 and not bedeutungen:
             return f"Ich habe keine spezifischen Informationen darüber, wer oder was '{topic}' ist."

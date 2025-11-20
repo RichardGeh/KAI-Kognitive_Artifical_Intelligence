@@ -337,7 +337,7 @@ class TestRunnerTab(QWidget):
             category_item.setFlags(
                 category_item.flags()
                 | Qt.ItemFlag.ItemIsUserCheckable
-                | Qt.ItemFlag.ItemIsTristate
+                | Qt.ItemFlag.ItemIsAutoTristate
             )
             category_item.setCheckState(0, Qt.CheckState.Checked)
             category_item.setExpanded(False)  # Standardmäßig eingeklappt
@@ -348,7 +348,7 @@ class TestRunnerTab(QWidget):
                 file_item.setFlags(
                     file_item.flags()
                     | Qt.ItemFlag.ItemIsUserCheckable
-                    | Qt.ItemFlag.ItemIsTristate
+                    | Qt.ItemFlag.ItemIsAutoTristate
                 )
                 file_item.setCheckState(0, Qt.CheckState.Checked)
                 file_item.setFont(0, self.get_semi_bold_font())

@@ -964,11 +964,17 @@ class ReasoningOrchestrator:
             for result in deterministic_results:
                 for rel_type, objects in result.inferred_facts.items():
                     for obj in objects:
+                        # FIX: strategy kann String oder Enum sein
+                        strategy_value = (
+                            result.strategy.value
+                            if hasattr(result.strategy, "value")
+                            else str(result.strategy)
+                        )
                         fact = ProbabilisticFact(
                             pred=rel_type,
                             args={"subject": topic.lower(), "object": obj.lower()},
                             probability=result.confidence,
-                            source=f"deterministic_{result.strategy.value}",
+                            source=f"deterministic_{strategy_value}",
                         )
                         self.probabilistic_engine.add_fact(fact)
 
@@ -1168,7 +1174,7 @@ class ReasoningOrchestrator:
 
         try:
             # Check if there is a constraint problem in working memory
-            states = self.working_memory.get_reasoning_states()
+            states = self.working_memory.get_reasoning_trace()
             constraint_problem = None
 
             for state in states:
@@ -1466,7 +1472,10 @@ class ReasoningOrchestrator:
 
         # Generate explanation
         strategies_used = [r.strategy for r in results]
-        strategy_names = ", ".join(s.value for s in strategies_used)
+        # FIX: strategy kann String oder Enum sein
+        strategy_names = ", ".join(
+            s.value if hasattr(s, "value") else str(s) for s in strategies_used
+        )
 
         explanation = (
             f"Kombiniertes Ergebnis aus {len(results)} Strategien ({strategy_names}). "

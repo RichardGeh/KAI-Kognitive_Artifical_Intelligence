@@ -469,13 +469,13 @@ class ResonanceEngine:
         try:
             # FIX 2024-11: execute_query existiert nicht mehr
             # Verwende direkten Neo4j Session Zugriff
-            if not hasattr(self.netzwerk, "_driver"):
+            if not hasattr(self.netzwerk, "driver") or not self.netzwerk.driver:
                 logger.warning(
-                    "KonzeptNetzwerk hat keinen _driver - Resonance deaktiviert"
+                    "KonzeptNetzwerk hat keinen driver - Resonance deaktiviert"
                 )
                 return []
 
-            with self.netzwerk._driver.session() as session:
+            with self.netzwerk.driver.session() as session:
                 result = session.run(
                     cypher,
                     {

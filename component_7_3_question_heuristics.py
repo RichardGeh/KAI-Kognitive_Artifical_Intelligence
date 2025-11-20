@@ -457,13 +457,84 @@ class QuestionHeuristicsExtractor:
         if match_wer:
             rest_of_question = match_wer.group(1).strip()
 
-            # FIX 2024-11: Bei WER-Fragen ist die GANZE Frage das Topic
-            # Beispiel: "Wer von den dreien trinkt gerne Brandy?"
-            # -> Topic sollte die ganze Frage sein, nicht nur "brandy"
-            # Grund: WER-Fragen suchen nach PERSONEN, nicht nach Objekten
+            # ALLGEMEINE LÖSUNG: Extrahiere das Objekt als Topic (NICHT Verb + Objekt!)
+            # Beispiel: "Wer von den dreien trinkt gerne einen Brandy?"
+            # -> Extrahiere: "brandy" als Topic (das gesuchte Objekt)
+            # Für WER-Fragen suchen wir: Welche Person ist mit diesem Objekt assoziiert?
 
-            # Verwende die komplette Frage als Topic (ohne "Wer")
-            cleaned_topic = self.text_normalizer.clean_entity(rest_of_question)
+            # Strategie: Nimm das letzte substantivische Nomen nach Filterung
+            # Das ist typischerweise das Objekt der Frage
+            words = rest_of_question.split()
+
+            # Filtere Stopp-Wörter (Artikel, Präpositionen, Adverbien, Füllwörter, häufige Verben)
+            filtered_words = [
+                w
+                for w in words
+                if w.lower()
+                not in [
+                    # Artikel & Pronomen
+                    "von",
+                    "den",
+                    "der",
+                    "die",
+                    "das",
+                    "dem",
+                    "einen",
+                    "eine",
+                    "ein",
+                    "dreien",
+                    "beiden",
+                    "allen",
+                    "diesen",
+                    "jenen",
+                    # Adverbien & Füllwörter
+                    "gerne",
+                    "gern",
+                    "oft",
+                    "immer",
+                    "manchmal",
+                    "also",
+                    "denn",
+                    # Präpositionen
+                    "aus",
+                    "bei",
+                    "zu",
+                    "in",
+                    "an",
+                    "auf",
+                    "über",
+                    "unter",
+                    "mit",
+                    # Häufige Verben (sollten ignoriert werden, da wir das Objekt suchen)
+                    "ist",
+                    "sind",
+                    "hat",
+                    "haben",
+                    "kann",
+                    "können",
+                    "trinkt",
+                    "trinken",
+                    "isst",
+                    "essen",
+                    "mag",
+                    "mögen",
+                    "benutzt",
+                    "benutzen",
+                    "verwendet",
+                    "verwenden",
+                    "macht",
+                    "machen",
+                ]
+            ]
+
+            if filtered_words:
+                # Nimm das LETZTE Wort als Objekt (typisch für deutsche Fragen)
+                extracted_topic = filtered_words[-1].lower()
+            else:
+                # Fallback: Ganzer Rest
+                extracted_topic = rest_of_question
+
+            cleaned_topic = self.text_normalizer.clean_entity(extracted_topic)
 
             # FIX: Höhere Confidence wenn Fragezeichen vorhanden
             confidence = 0.90 if text.rstrip().endswith("?") else 0.80

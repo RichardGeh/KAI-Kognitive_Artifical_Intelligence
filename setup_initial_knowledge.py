@@ -123,68 +123,90 @@ def create_extraction_rules(netzwerk: KonzeptNetzwerk) -> bool:
         # Eigenschaften
         {
             "type": "HAS_PROPERTY",
-            "regex": r"^(.*?)\s+hat\s+(?:die Eigenschaft|die Fähigkeit)?\s*(.*?)\.?$",
+            "regex": r"^(.+?)\s+hat\s+(?:die Eigenschaft|die Fähigkeit)?\s*(.+?)\.?$",
             "desc": "Erfasst Eigenschaften oder Fähigkeiten",
         },
         {
             "type": "HAS_PROPERTY",
-            "regex": r"^(.*?)\s+ist\s+(groß|klein|rot|grün|blau|schwer|leicht|schnell|langsam)\.?$",
+            "regex": r"^(.+?)\s+ist\s+(groß|klein|rot|grün|blau|schwer|leicht|schnell|langsam)\.?$",
             "desc": "Adjektivische Eigenschaften",
         },
         # Fähigkeiten
         {
             "type": "CAPABLE_OF",
-            "regex": r"^(.*?)\s+kann\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+kann\s+(.+?)\.?$",
             "desc": "Erfasst Fähigkeiten (z.B. 'Ein Vogel kann fliegen')",
         },
         {
             "type": "CAPABLE_OF",
-            "regex": r"^(.*?)\s+kann\s+nicht\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+kann\s+nicht\s+(.+?)\.?$",
             "desc": "Negierte Fähigkeiten (z.B. 'Ein Pinguin kann nicht fliegen')",
         },
         # Teil-Ganzes
         {
             "type": "PART_OF",
-            "regex": r"^(.*?)\s+(?:ist Teil von|gehört zu)\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+(?:ist Teil von|gehört zu)\s+(.+?)\.?$",
             "desc": "Erfasst Teil-Ganzes-Beziehungen",
         },
         {
             "type": "PART_OF",
-            "regex": r"^(.*?)\s+hat\s+(?:ein|eine|einen)\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+hat\s+(?:ein|eine|einen)\s+(.+?)\.?$",
             "desc": "Besitz-Beziehungen (z.B. 'Ein Auto hat Räder')",
         },
         # Räumliche Beziehungen
         {
             "type": "LOCATED_IN",
-            "regex": r"^(.*?)\s+(?:ist in|befindet sich in|liegt in)\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+(?:ist in|befindet sich in|liegt in)\s+(.+?)\.?$",
             "desc": "Erfasst räumliche Beziehungen",
         },
         {
             "type": "LOCATED_IN",
-            "regex": r"^(.*?)\s+(?:ist|liegt)\s+(?:nördlich|südlich|östlich|westlich)\s+von\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+(?:ist|liegt)\s+(?:nördlich|südlich|östlich|westlich)\s+von\s+(.+?)\.?$",
             "desc": "Himmelsrichtungen",
         },
         # Kausale Beziehungen
         {
             "type": "CAUSES",
-            "regex": r"^(.*?)\s+verursacht\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+verursacht\s+(.+?)\.?$",
             "desc": "Kausale Beziehungen (z.B. 'Regen verursacht Nässe')",
         },
         {
             "type": "CAUSES",
-            "regex": r"^(.*?)\s+führt zu\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+führt zu\s+(.+?)\.?$",
             "desc": "Folge-Beziehungen",
         },
         # Temporale Beziehungen
         {
             "type": "BEFORE",
-            "regex": r"^(.*?)\s+(?:ist|kommt|passiert)\s+vor\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+(?:ist|kommt|passiert)\s+vor\s+(.+?)\.?$",
             "desc": "Zeitliche Reihenfolge",
         },
         {
             "type": "AFTER",
-            "regex": r"^(.*?)\s+(?:ist|kommt|passiert)\s+nach\s+(.*?)\.?$",
+            "regex": r"^(.+?)\s+(?:ist|kommt|passiert)\s+nach\s+(.+?)\.?$",
             "desc": "Zeitliche Reihenfolge (umgekehrt)",
+        },
+        # Assoziationen/Aktionen (POSITIV - wichtig für Logik-Rätsel!)
+        {
+            "type": "ASSOCIATED_WITH",
+            "regex": r"^(.+?)\s+(?:mag|isst|trinkt|benutzt|verwendet|macht)\s+(?:gerne\s+)?(.+?)\.?$",
+            "desc": "Positive Assoziationen/Aktionen (z.B. 'X isst Y', 'X trinkt gerne Y')",
+        },
+        # Generische Negationen (ALLGEMEIN - nicht rätselspezifisch)
+        {
+            "type": "NOT_HAS_PROPERTY",
+            "regex": r"^(.+?)\s+(?:hat|haben)\s+(?:kein|keine|keinen)\s+(.+?)\.?$",
+            "desc": "Negierte Eigenschaften (z.B. 'X hat keine Y')",
+        },
+        {
+            "type": "NOT_ASSOCIATED_WITH",
+            "regex": r"^(.+?)\s+(?:mag|isst|trinkt|benutzt|verwendet|macht)\s+(?:kein|keine|keinen)\s+(.+?)\.?$",
+            "desc": "Negierte Assoziationen/Aktionen (z.B. 'X isst keine Y', 'X trinkt keinen Y')",
+        },
+        {
+            "type": "NOT_IS_A",
+            "regex": r"^(.+?)\s+ist\s+(?:kein|keine)\s+(.+?)\.?$",
+            "desc": "Negierte Taxonomie (z.B. 'X ist kein Y')",
         },
     ]
 
@@ -950,6 +972,235 @@ def verify_complete_setup(netzwerk: KonzeptNetzwerk) -> bool:
     return True
 
 
+def create_common_words(netzwerk) -> bool:
+    """
+    Erstellt Bootstrap-CommonWords für Entity-Extraktion.
+
+    CommonWords sind Wörter die NICHT als Entitäten erkannt werden sollen
+    (Artikel, Konjunktionen, Fragewörter, bekannte Objekte, Verben).
+
+    Returns:
+        True wenn erfolgreich
+    """
+    logger = logging.getLogger("KAI_SETUP")
+
+    try:
+        # Definiere Basis-CommonWords nach Kategorie
+        common_words_dict = {
+            # Artikel
+            "article": [
+                "der",
+                "die",
+                "das",
+                "ein",
+                "eine",
+                "einen",
+                "einem",
+                "eines",
+                "einer",
+                "den",
+                "dem",
+                "des",
+            ],
+            # Konjunktionen und Konnektor-Wörter
+            "conjunction": [
+                "und",
+                "oder",
+                "aber",
+                "wenn",
+                "dann",
+                "dass",
+                "ob",
+                "als",
+                "wie",
+                "weil",
+                "während",
+                "bevor",
+                "nachdem",
+                "hingegen",
+                "allerdings",
+                "außerdem",
+                "ferner",
+                "weiterhin",
+                "entweder",
+                "weder",
+                "noch",
+            ],
+            # Fragewörter
+            "question_word": [
+                "wer",
+                "was",
+                "wie",
+                "wo",
+                "wann",
+                "warum",
+                "wieso",
+                "weshalb",
+                "welche",
+                "welcher",
+                "welches",
+                "wozu",
+                "woher",
+                "wohin",
+            ],
+            # Pronomen und Determinatoren
+            "pronoun": [
+                "es",
+                "sie",
+                "er",
+                "ich",
+                "du",
+                "wir",
+                "ihr",
+                "dieser",
+                "diese",
+                "dieses",
+                "jener",
+                "jene",
+                "jenes",
+                "mein",
+                "dein",
+                "sein",
+                "ihr",
+                "unser",
+                "euer",
+                "alle",
+                "beide",
+                "einige",
+                "manche",
+                "jede",
+                "jeder",
+                "jedes",
+            ],
+            # Adverbien und Modalwörter
+            "adverb": [
+                "auch",
+                "nicht",
+                "nur",
+                "sehr",
+                "ganz",
+                "gerne",
+                "gern",
+                "oft",
+                "immer",
+                "nie",
+                "niemals",
+                "manchmal",
+                "selten",
+                "vielleicht",
+                "sicher",
+                "bestimmt",
+                "wahrscheinlich",
+                "also",
+                "denn",
+                "jedoch",
+                "trotzdem",
+            ],
+            # Präpositionen
+            "preposition": [
+                "in",
+                "an",
+                "auf",
+                "über",
+                "unter",
+                "vor",
+                "hinter",
+                "neben",
+                "zwischen",
+                "bei",
+                "mit",
+                "ohne",
+                "zu",
+                "von",
+                "aus",
+                "nach",
+                "seit",
+                "bis",
+                "durch",
+                "für",
+                "gegen",
+                "um",
+            ],
+            # Bekannte Objekte (typische Logic-Puzzle-Gegenstände)
+            "object": [
+                "brandy",
+                "bier",
+                "gin",
+                "rum",
+                "wein",
+                "vodka",
+                "whisky",
+                "kaffee",
+                "tee",
+                "wasser",
+                "saft",
+                "milch",
+                "pizza",
+                "pasta",
+                "burger",
+                "salat",
+                "suppe",
+                "auto",
+                "fahrrad",
+                "bus",
+                "zug",
+                "rot",
+                "blau",
+                "grün",
+                "gelb",
+                "schwarz",
+                "weiß",
+            ],
+            # Verben die als Nomen erkannt werden könnten
+            "verb": [
+                "essen",
+                "trinken",
+                "trinkt",
+                "isst",
+                "mag",
+                "kann",
+                "will",
+                "kauft",
+                "nimmt",
+                "bestellt",
+                "macht",
+                "sagt",
+                "geht",
+                "kommt",
+                "vorkommen",
+                "geschehen",
+            ],
+        }
+
+        # Zähle zu erstellende Wörter
+        total_words = sum(len(words) for words in common_words_dict.values())
+        logger.info(
+            f"  Erstelle {total_words} CommonWords in {len(common_words_dict)} Kategorien..."
+        )
+
+        # Füge alle Wörter hinzu
+        count = netzwerk.add_common_words_batch(common_words_dict)
+
+        logger.info(f"  [OK] {count} neue CommonWords erstellt")
+        logger.info(f"  [OK] {total_words - count} CommonWords bereits vorhanden")
+
+        # Verifiziere
+        stats = netzwerk.get_common_words_statistics()
+        logger.info(f"  [OK] Gesamt in DB: {stats.get('total', 0)} CommonWords")
+
+        # Zeige Kategorien
+        for category, count in stats.get("by_category", {}).items():
+            logger.info(f"      - {category}: {count} Wörter")
+
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"[ERROR] Fehler beim Erstellen der CommonWords: {e}", exc_info=True
+        )
+        return False
+
+
 def run_setup():
     """
     Hauptfunktion für das Setup mit vollständiger Fehlerbehandlung und Verifizierung.
@@ -1000,6 +1251,14 @@ def run_setup():
         logger.critical("[ERROR] FATAL: Konnte Trigger nicht erstellen")
         netzwerk.close()
         sys.exit(1)
+
+    # Schritt 4.5: CommonWords erstellen (für Entity-Extraktion)
+    logger.info("\n🚫 Schritt 4.5: CommonWords (Stop-Words) erstellen...")
+    if not create_common_words(netzwerk):
+        logger.warning(
+            "[WARNING]  CommonWords konnten nicht vollständig erstellt werden"
+        )
+        logger.warning("Entity-Extraktion kann eingeschränkt sein")
 
     # Schritt 5: Production Rules erstellen
     logger.info("\n🔧 Schritt 5: Production Rules erstellen...")

@@ -384,6 +384,148 @@ class KaiWorker(QObject):
                 # Komplexe Eingabe erkannt (Erklärungen + Fragen)
                 logger.info("Orchestrierte Verarbeitung aktiviert")
 
+                # SPEZIALFALL: LOGIK-RÄTSEL
+                # Wenn ein Logik-Rätsel erkannt wurde, nutze LogicPuzzleSolver
+                if orchestration_result.get("is_logic_puzzle", False):
+                    logger.info(
+                        "[LOGIC-PUZZLE] Logik-Rätsel erkannt, nutze LogicPuzzleSolver"
+                    )
+
+                    try:
+                        # ===== HYBRID ENTITY EXTRACTION =====
+                        # 1. Primär: spaCy NER (Named Entity Recognition)
+                        # 2. Sekundär: Kapitalisierungs-Heuristik + Neo4j CommonWords Filter
+                        # 3. Tertiär: Fallback zu Standard-Orchestration wenn leer
+                        import re
+                        from collections import Counter
+
+                        from component_45_logic_puzzle_solver import LogicPuzzleSolver
+
+                        entities = []
+
+                        # PRIMÄR: Nutze spaCy NER für PERSON entities
+                        try:
+                            if self.preprocessor:
+                                doc = self.preprocessor.nlp(cleaned_query)
+                                person_entities = [
+                                    ent.text
+                                    for ent in doc.ents
+                                    if ent.label_ == "PERSON"
+                                ]
+                                if person_entities:
+                                    entities = list(
+                                        set(person_entities)
+                                    )  # Dedupliziere
+                                    logger.info(
+                                        f"[LOGIC-PUZZLE] spaCy NER: {len(entities)} PERSON entities gefunden: {entities}"
+                                    )
+                        except Exception as e:
+                            logger.warning(
+                                f"[LOGIC-PUZZLE] spaCy NER fehlgeschlagen: {e}"
+                            )
+
+                        # SEKUNDÄR: Fallback zu Kapitalisierungs-Heuristik mit Neo4j Filter
+                        if not entities:
+                            logger.info(
+                                "[LOGIC-PUZZLE] Kein spaCy NER, verwende Kapitalisierungs-Heuristik"
+                            )
+
+                            # Extrahiere kapitalisierte Wörter
+                            words = re.findall(r"\b([A-Z][a-z]+)\b", cleaned_query)
+                            word_counts = Counter(words)
+
+                            # Hole CommonWords aus Neo4j (dynamisch!)
+                            common_words_set = self.netzwerk.get_common_words()
+                            logger.debug(
+                                f"[LOGIC-PUZZLE] {len(common_words_set)} CommonWords aus Neo4j geladen"
+                            )
+
+                            # Filtere: Nur Wörter die mind. 2x vorkommen UND nicht in CommonWords
+                            entities = [
+                                w
+                                for w, count in word_counts.items()
+                                if count >= 2 and w.lower() not in common_words_set
+                            ]
+
+                            if entities:
+                                logger.info(
+                                    f"[LOGIC-PUZZLE] Heuristik: {len(entities)} Kandidaten gefunden: {entities}"
+                                )
+
+                        if not entities:
+                            logger.warning(
+                                "[LOGIC-PUZZLE] Keine Entitäten erkannt, fallback zu Standard-Orchestration"
+                            )
+                        else:
+                            logger.info(
+                                f"[LOGIC-PUZZLE] Erkannte Entitäten: {entities}"
+                            )
+
+                            # Finde die Frage (letztes Segment)
+                            segments = orchestration_result["segments"]
+                            question_segments = [s for s in segments if s.is_question()]
+                            question = (
+                                question_segments[-1].text if question_segments else ""
+                            )
+
+                            # Extrahiere Bedingungen (alle Erklärungen)
+                            explanation_segments = [
+                                s for s in segments if s.is_explanation()
+                            ]
+                            conditions_text = "\n".join(
+                                s.text for s in explanation_segments
+                            )
+
+                            # DEBUG: Zeige Segmente und Bedingungen
+                            logger.info(
+                                f"[LOGIC-PUZZLE] Segmente: {len(segments)} gesamt"
+                            )
+                            for i, seg in enumerate(segments, 1):
+                                logger.info(
+                                    f"  [{i}] {seg.segment_type.value}: '{seg.text}'"
+                                )
+                            logger.info(
+                                f"[LOGIC-PUZZLE] Bedingungen-Text ({len(explanation_segments)} Segmente):"
+                            )
+                            logger.info(f"{conditions_text}")
+                            logger.info(f"[LOGIC-PUZZLE] Frage: '{question}'")
+
+                            # Löse das Rätsel
+                            solver = LogicPuzzleSolver()
+                            result = solver.solve(conditions_text, entities, question)
+
+                            # Formatiere Antwort als KaiResponse
+                            if result["result"] == "SATISFIABLE":
+                                response = KaiResponse(
+                                    text=result["answer"],
+                                    trace=["Logic Puzzle Solver"],
+                                    strategy="logic_puzzle",
+                                    confidence=1.0,
+                                )
+                                self.signals.finished.emit(response)
+                                logger.info(
+                                    f"[LOGIC-PUZZLE] Lösung gefunden: {result['answer']}"
+                                )
+                                return
+                            else:
+                                error_msg = "Das Rätsel hat keine Lösung (Widerspruch in den Bedingungen)."
+                                response = KaiResponse(
+                                    text=error_msg,
+                                    trace=["Logic Puzzle Solver - UNSAT"],
+                                    strategy="logic_puzzle",
+                                    confidence=0.0,
+                                )
+                                self.signals.finished.emit(response)
+                                logger.warning(f"[LOGIC-PUZZLE] {error_msg}")
+                                return
+
+                    except Exception as e:
+                        logger.error(
+                            f"[LOGIC-PUZZLE] Fehler beim Lösen: {e}", exc_info=True
+                        )
+                        # Fallback zu Standard-Orchestration
+
+                # STANDARD-ORCHESTRATION (nicht Logik-Rätsel)
                 # Hole orchestrierten Plan
                 orchestrated_plan = orchestration_result["plan"]
                 segments = orchestration_result["segments"]

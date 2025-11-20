@@ -14,6 +14,7 @@ Modular structure:
 
 from typing import Any, Dict, List, Optional
 
+from component_1_netzwerk_common_words import CommonWordsManager
 from component_1_netzwerk_core import INFO_TYPE_ALIASES, KonzeptNetzwerkCore
 from component_1_netzwerk_feedback import KonzeptNetzwerkFeedback
 from component_1_netzwerk_memory import KonzeptNetzwerkMemory
@@ -42,7 +43,7 @@ class KonzeptNetzwerk:
         # Initialize core (creates driver and connection)
         self._core = KonzeptNetzwerkCore(uri, user, password)
 
-        # Initialize patterns, memory, word usage, feedback, and production rules with the driver
+        # Initialize patterns, memory, word usage, feedback, production rules, and common words with the driver
         self._patterns = KonzeptNetzwerkPatterns(self._core.driver)
         self._memory = KonzeptNetzwerkMemory(self._core.driver)
         self._word_usage = KonzeptNetzwerkWordUsage(self._core.driver)
@@ -50,8 +51,9 @@ class KonzeptNetzwerk:
         self._production_rules = KonzeptNetzwerkProductionRules(
             self._core.driver
         )  # PHASE 9
+        self._common_words = CommonWordsManager(self._core.driver)
 
-        # Create constraints for word usage and feedback
+        # Create constraints for word usage, feedback, and common words
         self._word_usage._create_constraints()
         self._feedback._create_constraints()
 
@@ -69,6 +71,7 @@ class KonzeptNetzwerk:
         self._word_usage.driver = value
         self._feedback.driver = value
         self._production_rules.driver = value
+        self._common_words.driver = value
 
     def close(self):
         """Close the database connection."""
@@ -521,6 +524,35 @@ class KonzeptNetzwerk:
     def get_production_rule_statistics(self) -> Dict[str, Any]:
         """Get aggregated statistics about all production rules."""
         return self._production_rules.get_rule_statistics()
+
+    # ========== COMMON WORDS METHODS ==========
+    # Delegate to CommonWordsManager
+
+    def add_common_word(
+        self, word: str, category: str, confidence: float = 1.0
+    ) -> bool:
+        """Add a common word (stop word) to the database."""
+        return self._common_words.add_common_word(word, category, confidence)
+
+    def add_common_words_batch(self, words_dict: dict) -> int:
+        """Add multiple common words in a batch."""
+        return self._common_words.add_common_words_batch(words_dict)
+
+    def get_common_words(self, category: Optional[str] = None):
+        """Get all common words (optionally filtered by category)."""
+        return self._common_words.get_common_words(category)
+
+    def is_common_word(self, word: str) -> bool:
+        """Check if a word is a common word."""
+        return self._common_words.is_common_word(word)
+
+    def remove_common_word(self, word: str) -> bool:
+        """Remove a common word from the database."""
+        return self._common_words.remove_common_word(word)
+
+    def get_common_words_statistics(self) -> dict:
+        """Get statistics about common words."""
+        return self._common_words.get_statistics()
 
 
 # Export INFO_TYPE_ALIASES for backward compatibility
