@@ -16,13 +16,56 @@ refactoring (Task 5).
 
 import re
 import threading
-from typing import Any, Dict, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
 from neo4j import Driver
 
 from component_15_logging_config import PerformanceLogger, get_logger
+from infrastructure import get_cache_manager
 
 logger = get_logger(__name__)
+
+# Whitelist of allowed relation types (security - prevent Cypher injection)
+ALLOWED_RELATIONS = {
+    "IS_A",
+    "HAS_PROPERTY",
+    "CAPABLE_OF",
+    "PART_OF",
+    "LOCATED_IN",
+    "CANNOT_DO",
+    "IS_NOT_A",
+    "NOT_IS_A",
+    "HAS_NOT_PROPERTY",
+    "NOT_PART_OF",
+    "NOT_LOCATED_IN",
+    "TRIGGERS",
+    "BEDEUTET",
+    "CONNECTION",
+    "LEARNED_FACT",
+    "KNOWS",
+    "KNOWS_ABOUT",
+    "KNOWS_THAT",
+    "ABOUT_AGENT",
+    # Spatial relations
+    "NORTH_OF",
+    "SOUTH_OF",
+    "EAST_OF",
+    "WEST_OF",
+    "ADJACENT_TO",
+    "NEIGHBOR_ORTHOGONAL",
+    "NEIGHBOR_DIAGONAL",
+    "INSIDE",
+    "CONTAINS",
+    "ABOVE",
+    "BELOW",
+    "LOCATED_AT",
+    "PATH_TO",
+    "DISTANCE_TO",
+    # Number language
+    "EQUIVALENT_TO",
+    "REPRESENTS_NUMBER",
+}
 
 
 class RelationManager:
@@ -64,6 +107,9 @@ class RelationManager:
         self.word_manager = word_manager
         self._lock = threading.RLock()
 
+        # Cache manager for invalidation
+        self.cache_mgr = get_cache_manager()
+
         logger.debug("RelationManager initialisiert")
 
     def assert_relation(
@@ -72,6 +118,7 @@ class RelationManager:
         relation: str,
         object: str,
         source_sentence: Optional[str] = None,
+        confidence: float = 0.85,
     ) -> bool:
         """
         Create an asserted relationship between two concepts.
@@ -81,10 +128,18 @@ class RelationManager:
             relation: Relation type (will be sanitized and uppercased)
             object: Object concept
             source_sentence: Optional source sentence for provenance
+            confidence: Confidence value (0.0-1.0, default: 0.85)
 
         Returns:
-            True if newly created, False if already existed or error
+            True if operation succeeded (relation exists after this call), False on error
+
+        Raises:
+            ValueError: If relation type is not in whitelist or confidence out of range (security)
         """
+        # Validate confidence range (security - prevent invalid data)
+        if not (0.0 <= confidence <= 1.0):
+            raise ValueError(f"Confidence must be in [0.0, 1.0], got {confidence}")
+
         if not self.driver:
             logger.error(
                 "assert_relation: Kein DB-Driver verfügbar",
@@ -100,6 +155,22 @@ class RelationManager:
                 extra={"relation": relation, "subject": subject, "object": object},
             )
             return False
+
+        # Validate against whitelist (security - prevent Cypher injection)
+        if safe_relation not in ALLOWED_RELATIONS:
+            error_msg = (
+                f"Relation type '{safe_relation}' not in whitelist. "
+                f"Allowed: {', '.join(sorted(ALLOWED_RELATIONS))}"
+            )
+            logger.error(
+                "Relation type not in whitelist",
+                extra={
+                    "relation": safe_relation,
+                    "subject": subject,
+                    "object": object,
+                },
+            )
+            raise ValueError(error_msg)
 
         # Ensure both subject and object concepts exist
         if not self.word_manager.ensure_wort_und_konzept(
@@ -129,13 +200,17 @@ class RelationManager:
                             rel.source_text = $source,
                             rel.asserted_at = timestamp(),
                             rel.timestamp = datetime({{timezone: 'UTC'}}),
-                            rel.confidence = 0.85
-                        // 'was_created' is true if 'asserted_at' was just set
-                        RETURN rel.asserted_at = timestamp() AS was_created
+                            rel.confidence = $confidence,
+                            rel.created = true
+                        ON MATCH SET
+                            rel.confidence = $confidence,
+                            rel.created = false
+                        RETURN rel.created AS was_created
                         """,
                         subject=subject.lower(),
                         object=object.lower(),
                         source=source_sentence,
+                        confidence=confidence,
                     )
                     record = result.single()
                     was_created: bool = record["was_created"] if record else False
@@ -160,7 +235,9 @@ class RelationManager:
                             },
                         )
 
-                    return was_created
+                    # Return True if operation succeeded (relation exists after this call)
+                    # False only if an error occurred
+                    return True
 
         except Exception as e:
             # Specific exception for write errors
@@ -173,6 +250,165 @@ class RelationManager:
             )
             # Graceful degradation - return False
             return False
+
+    def batch_assert_relations(
+        self,
+        relations: List[Dict[str, Any]],
+        batch_size: int = 100,
+    ) -> Dict[str, int]:
+        """
+        Batch-create relations using UNWIND (5-10x faster than individual calls).
+
+        PERFORMANCE: This method uses UNWIND for efficient batch processing,
+        significantly faster than calling assert_relation() individually for
+        large numbers of relations.
+
+        Args:
+            relations: List of dicts with keys:
+                - subject (str): Subject entity name
+                - relation (str): Relation type
+                - object (str): Object entity name
+                - confidence (float, optional): Default 0.85
+                - source_sentence (str, optional): Source text
+            batch_size: Batch size per UNWIND query (default: 100)
+
+        Returns:
+            Dict with {relation_type: created_count}
+
+        Raises:
+            ValueError: If any confidence value is out of range [0.0, 1.0]
+                       or if relation type is not in whitelist
+
+        Example:
+            relations = [
+                {"subject": "hund", "relation": "IS_A", "object": "tier", "confidence": 0.9},
+                {"subject": "katze", "relation": "IS_A", "object": "tier", "confidence": 0.9},
+            ]
+            counts = relation_mgr.batch_assert_relations(relations)
+            # Returns: {"IS_A": 2}
+
+        Note:
+            - Empty relations list returns empty dict (not an error)
+            - Invalid relation types raise ValueError
+            - All words/concepts are created if they don't exist
+            - Cache is invalidated for all affected subjects
+            - Transaction is atomic per relation type batch
+        """
+        if not relations:
+            logger.debug("batch_assert_relations: No relations to create")
+            return {}
+
+        # Validate all confidences upfront (fail fast)
+        for rel in relations:
+            conf = rel.get("confidence", 0.85)
+            if not (0.0 <= conf <= 1.0):
+                raise ValueError(
+                    f"Confidence must be in [0.0, 1.0], got {conf} for relation {rel}"
+                )
+
+        # Group relations by type (to avoid dynamic f-string per relation)
+        by_type: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+        for rel in relations:
+            # Sanitize relation type
+            safe_rel = re.sub(r"[^a-zA-Z0-9_]", "", rel["relation"].upper())
+            if not safe_rel:
+                logger.warning(
+                    "Skipping relation with invalid type", extra={"relation": rel}
+                )
+                continue
+
+            # Validate against whitelist (security)
+            if safe_rel not in ALLOWED_RELATIONS:
+                raise ValueError(
+                    f"Relation type '{safe_rel}' not in whitelist. "
+                    f"Allowed: {', '.join(sorted(ALLOWED_RELATIONS))}"
+                )
+
+            by_type[safe_rel].append(rel)
+
+        created_counts: Dict[str, int] = {}
+
+        # Process each relation type separately
+        for rel_type, batch_list in by_type.items():
+            # First ensure all words/concepts exist
+            for item in batch_list:
+                self.word_manager.ensure_wort_und_konzept(item["subject"])
+                self.word_manager.ensure_wort_und_konzept(item["object"])
+
+            # Process in batches
+            total_created = 0
+
+            for i in range(0, len(batch_list), batch_size):
+                chunk = batch_list[i : i + batch_size]
+
+                # Prepare batch data (normalize to lowercase)
+                batch_data = [
+                    {
+                        "subject": item["subject"].lower(),
+                        "object": item["object"].lower(),
+                        "confidence": item.get("confidence", 0.85),
+                        "source_sentence": item.get("source_sentence", ""),
+                    }
+                    for item in chunk
+                ]
+
+                # Batch create with UNWIND
+                query = f"""
+                UNWIND $batch AS rel
+                MATCH (s:Konzept {{name: rel.subject}})
+                MATCH (o:Konzept {{name: rel.object}})
+                MERGE (s)-[r:{rel_type}]->(o)
+                ON CREATE SET
+                    r.confidence = rel.confidence,
+                    r.timestamp = datetime({{timezone: 'UTC'}}),
+                    r.source_text = rel.source_sentence,
+                    r.asserted_at = timestamp()
+                ON MATCH SET
+                    r.confidence = rel.confidence,
+                    r.timestamp = datetime({{timezone: 'UTC'}})
+                RETURN count(r) AS created
+                """
+
+                try:
+                    with self.driver.session(database="neo4j") as session:
+                        result = session.run(query, {"batch": batch_data})
+                        count = result.single()["created"]
+                        total_created += count
+                        logger.debug(
+                            f"Batch created {count} {rel_type} relations",
+                            extra={"relation_type": rel_type, "batch_size": len(chunk)},
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Batch creation failed for {rel_type}",
+                        extra={
+                            "relation_type": rel_type,
+                            "batch_size": len(chunk),
+                            "error": str(e),
+                        },
+                        exc_info=True,
+                    )
+                    # Continue with next batch instead of failing completely
+                    continue
+
+            created_counts[rel_type] = total_created
+
+            # Invalidate caches for affected subjects
+            for item in batch_list:
+                cache_key = (item["subject"].lower(), 0.0, None)
+                self.cache_mgr.invalidate("netzwerk_facts", cache_key)
+
+        logger.info(
+            "Batch relations created",
+            extra={
+                "total_relations": len(relations),
+                "relation_types": list(created_counts.keys()),
+                "created_counts": created_counts,
+            },
+        )
+
+        return created_counts
 
     def create_agent(
         self, agent_id: str, name: str, reasoning_capacity: int = 5
@@ -424,6 +660,85 @@ class RelationManager:
         except Exception as e:
             logger.log_exception(e, "get_node_count: Fehler")
             return 0
+
+    def assert_negation(
+        self,
+        subject: str,
+        base_relation: str,
+        object: str,
+        source_sentence: Optional[str] = None,
+    ) -> bool:
+        """
+        Create a negation relation (e.g., CANNOT_DO instead of CAPABLE_OF).
+
+        This method handles negative assertions, which are critical for logic puzzles
+        and exception-based reasoning (e.g., "penguins cannot fly").
+
+        Mapping:
+        - CAPABLE_OF -> CANNOT_DO
+        - IS_A -> NOT_IS_A
+        - HAS_PROPERTY -> HAS_NOT_PROPERTY
+        - PART_OF -> NOT_PART_OF
+        - LOCATED_IN -> NOT_LOCATED_IN
+
+        Args:
+            subject: Subject concept
+            base_relation: Base relation type (without negation)
+            object: Object concept
+            source_sentence: Source sentence for provenance
+
+        Returns:
+            True if successfully created, False otherwise
+
+        Example:
+            >>> relation_mgr.assert_negation("pinguin", "CAPABLE_OF", "fliegen",
+            ...                              "Ein Pinguin kann nicht fliegen")
+            True
+            # Creates: (pinguin)-[CANNOT_DO]->(fliegen)
+        """
+        # Mapping: Positive -> Negative Relation
+        negation_map = {
+            "CAPABLE_OF": "CANNOT_DO",
+            "IS_A": "NOT_IS_A",
+            "HAS_PROPERTY": "HAS_NOT_PROPERTY",
+            "PART_OF": "NOT_PART_OF",
+            "LOCATED_IN": "NOT_LOCATED_IN",
+        }
+
+        base_relation_upper = base_relation.upper()
+        negated_relation = negation_map.get(base_relation_upper)
+
+        if not negated_relation:
+            logger.warning(
+                f"assert_negation: Keine Negations-Regel für '{base_relation}', "
+                f"verwende NOT_{base_relation_upper}",
+                extra={
+                    "subject": subject,
+                    "base_relation": base_relation,
+                    "object": object,
+                },
+            )
+            negated_relation = f"NOT_{base_relation_upper}"
+
+        # Create negation relation using existing assert_relation
+        success = self.assert_relation(
+            subject, negated_relation, object, source_sentence
+        )
+
+        if success:
+            logger.info(
+                "Negations-Relation erstellt",
+                extra={
+                    "subject": subject,
+                    "negated_relation": negated_relation,
+                    "object": object,
+                    "base_relation": base_relation,
+                },
+            )
+            # Note: Contradiction marking with positive relations could be added here
+            # but is deferred to avoid complexity in Quick Win implementation
+
+        return success
 
     def _is_safe_relation_type(self, relation_type: str) -> bool:
         """

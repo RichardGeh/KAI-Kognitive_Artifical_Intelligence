@@ -138,6 +138,7 @@ class GraphTraversalHandler:
                 )
 
                 # PHASE 2 (Proof Tree): Generiere ProofTree für Graph-Traversal
+                proof_tree = None
                 if PROOF_SYSTEM_AVAILABLE:
                     try:
                         proof_tree = ProofTree(query=f"Was ist ein {topic}?")
@@ -163,16 +164,19 @@ class GraphTraversalHandler:
                         )
                         user_msg = get_user_friendly_message(e)
                         logger.info(f"[Proof Tree] User-Message: {user_msg}")
+                        proof_tree = None
                     except Exception as e:
                         logger.warning(
                             f"[Proof Tree] Unerwarteter Fehler beim Generieren des ProofTree: {e}",
                             exc_info=True,
                         )
+                        proof_tree = None
 
                 return {
                     "inferred_facts": inferred_facts,
                     "proof_trace": proof_trace,
                     "confidence": confidence_metrics.value,
+                    "proof_tree": proof_tree,
                 }
             else:
                 logger.info(

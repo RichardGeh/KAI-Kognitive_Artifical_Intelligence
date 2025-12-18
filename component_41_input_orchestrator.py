@@ -230,6 +230,7 @@ class InputOrchestrator:
         - Mehrere Erklärungen vor der Frage
         - ODER: Einfache repetitive Entity-Fakten + Frage
         - ODER: Numerisches Constraint-Rätsel
+        - ODER: Constraint-basiertes Rätsel (negative constraints, assignments)
 
         Args:
             text: Der vollständige Eingabetext
@@ -244,6 +245,10 @@ class InputOrchestrator:
 
         # Prüfe auf numerisches Rätsel
         if self._is_numerical_puzzle(text, segments):
+            return True
+
+        # [NEW] Prüfe auf Constraint-basiertes Rätsel
+        if self._is_constraint_puzzle(text, segments):
             return True
 
         # Logik-Puzzle-Patterns (komplexe Rätsel)
@@ -325,6 +330,113 @@ class InputOrchestrator:
             logger.info("Numerisches Constraint-Rätsel erkannt")
 
         return is_numerical
+
+    def _is_constraint_puzzle(self, text: str, segments: List[InputSegment]) -> bool:
+        """
+        Prüft ob der Text ein Constraint-Satisfaction-Problem darstellt.
+
+        Verwendet mehrere Heuristiken:
+        - Numbered lists (1. 2. 3.) mit 3+ Items + Frage
+        - Negative Constraints: "nicht", "kein", "weder...noch"
+        - All-Different: "unterschiedliche", "verschiedene"
+        - Assignments: "Name verb Value"
+        - Uniqueness: "genau eine/einer"
+
+        Args:
+            text: Der zu prüfende Text
+            segments: Liste von klassifizierten Segmenten
+
+        Returns:
+            True wenn Constraint-Problem erkannt wurde, sonst False
+        """
+        import re
+
+        try:
+            has_question = any(seg.is_question() for seg in segments)
+            if not has_question:
+                return False
+
+            text_lower = text.lower()
+
+            # [NEW] Strong signal: Numbered list with 3+ items
+            has_numbered_list = bool(
+                re.search(r"(?:\n|^)\s*\d+\.\s+", text, re.MULTILINE)
+            )
+            numbered_item_count = len(
+                re.findall(r"(?:\n|^)\s*\d+\.\s+", text, re.MULTILINE)
+            )
+
+            if has_numbered_list and numbered_item_count >= 3 and has_question:
+                logger.info(
+                    f"Constraint-Rätsel erkannt (Numbered List) | "
+                    f"items={numbered_item_count}, has_question={has_question}"
+                )
+                return True
+
+            # [IMPROVED] Negative Constraint Patterns (generalized for any verb)
+            negative_patterns = [
+                r"\b\w+\s+kein(?:e|er|en)?\s+",  # "traegt keine", "ist kein"
+                r"\b\w+\s+nicht\s+(?:[A-Z]|die|der|das|den|dem|des|ein|eine|einen)",  # "traegt nicht Rot"
+                r"\bweder\s+.+?\s+noch\s+",  # "weder Gruen noch Gelb"
+                r"\bnicht\s+(?:die|der|das|den)\s+(?:gleiche|selbe)",  # "nicht die gleiche Farbe"
+            ]
+
+            # All-Different Constraint Patterns
+            all_different_patterns = [
+                r"\bunterschiedlich(?:e|en)?\s+",
+                r"\bverschieden(?:e|en)?\s+",
+                r"\bjeweils\s+(?:eine|ein)\s+",  # "jeweils eine Farbe" (each one different)
+            ]
+
+            # [IMPROVED] Positive assignment pattern (generalized for multiple verbs)
+            assignment_pattern = r"\b[A-Z][a-z]+\s+(?:ist|sind|traegt|tragen|hat|haben|mag|moegen|trinkt|trinken|isst|essen|kauft|kaufen)\s+[A-Z][a-z]+"
+
+            # [NEW] Uniqueness constraint patterns
+            uniqueness_patterns = [
+                r"\bgenau\s+(?:eine|einer|ein)\s+",  # "Genau eine Person"
+                r"\bnur\s+(?:eine|einer|ein)\s+",  # "Nur einer"
+                r"\beinzige\s+",  # "Die einzige"
+            ]
+
+            # Count pattern matches
+            negative_count = sum(
+                len(re.findall(p, text, re.IGNORECASE)) for p in negative_patterns
+            )
+
+            all_different_count = sum(
+                len(re.findall(p, text_lower, re.IGNORECASE))
+                for p in all_different_patterns
+            )
+
+            assignment_count = len(re.findall(assignment_pattern, text))
+
+            uniqueness_count = sum(
+                len(re.findall(p, text_lower, re.IGNORECASE))
+                for p in uniqueness_patterns
+            )
+
+            total_constraint_patterns = (
+                negative_count
+                + all_different_count
+                + assignment_count
+                + uniqueness_count
+            )
+
+            # Need at least 2 constraint patterns + question for constraint puzzle
+            if total_constraint_patterns >= 2 and has_question:
+                logger.info(
+                    f"Constraint-Rätsel erkannt (Pattern Matching) | "
+                    f"negative={negative_count}, all_different={all_different_count}, "
+                    f"assignment={assignment_count}, uniqueness={uniqueness_count}, "
+                    f"total={total_constraint_patterns}, has_question={has_question}"
+                )
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"Constraint-Detection fehlgeschlagen: {e}")
+            return False
 
     def classify_logic_puzzle_type(
         self, text: str, segments: List[InputSegment]

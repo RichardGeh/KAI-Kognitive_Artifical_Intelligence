@@ -171,10 +171,42 @@ class KonzeptNetzwerkCore:
         relation: str,
         object: str,
         source_sentence: Optional[str] = None,
+        confidence: float = 0.85,
     ) -> bool:
         """Create an asserted relationship between two concepts."""
         return self.relations.assert_relation(
-            subject, relation, object, source_sentence
+            subject, relation, object, source_sentence, confidence
+        )
+
+    def assert_negation(
+        self,
+        subject: str,
+        base_relation: str,
+        object: str,
+        source_sentence: Optional[str] = None,
+    ) -> bool:
+        """
+        Create a negation relation (e.g., CANNOT_DO instead of CAPABLE_OF).
+
+        This facade method delegates to RelationManager.assert_negation().
+        Critical for logic puzzles and exception-based reasoning.
+
+        Args:
+            subject: Subject concept
+            base_relation: Base relation type (e.g., "CAPABLE_OF")
+            object: Object concept
+            source_sentence: Source sentence for provenance
+
+        Returns:
+            True if successfully created, False otherwise
+
+        Example:
+            >>> netzwerk.assert_negation("pinguin", "CAPABLE_OF", "fliegen",
+            ...                          "Ein Pinguin kann nicht fliegen")
+            True
+        """
+        return self.relations.assert_negation(
+            subject, base_relation, object, source_sentence
         )
 
     def create_agent(
@@ -205,9 +237,23 @@ class KonzeptNetzwerkCore:
     # Query Operations (delegated to QueryEngine)
     # ============================================================================
 
-    def query_graph_for_facts(self, topic: str) -> Dict[str, List[str]]:
-        """Query the graph for all known outgoing facts (relationships) for a topic."""
-        return self.queries.query_graph_for_facts(topic)
+    def query_graph_for_facts(
+        self, topic: str, min_confidence: float = 0.0, sort_by_confidence: bool = False
+    ) -> Dict[str, List[str]]:
+        """
+        Query the graph for all known outgoing facts (relationships) for a topic.
+
+        Args:
+            topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
+            sort_by_confidence: Sort results by confidence DESC. Default False
+
+        Returns:
+            Dict with {relation_type: [target_concepts]}
+        """
+        return self.queries.query_graph_for_facts(
+            topic, min_confidence, sort_by_confidence
+        )
 
     def query_inverse_relations(
         self, topic: str, relation_type: Optional[str] = None
@@ -216,10 +262,19 @@ class KonzeptNetzwerkCore:
         return self.queries.query_inverse_relations(topic, relation_type)
 
     def query_graph_for_facts_with_confidence(
-        self, topic: str
+        self, topic: str, min_confidence: float = 0.0
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Query the graph for all outgoing facts AND their confidence values and timestamps."""
-        return self.queries.query_graph_for_facts_with_confidence(topic)
+        """
+        Query the graph for all outgoing facts AND their confidence values and timestamps.
+
+        Args:
+            topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
+
+        Returns:
+            Dict with {relation_type: [{"target": str, "confidence": float, "timestamp": str}]}
+        """
+        return self.queries.query_graph_for_facts_with_confidence(topic, min_confidence)
 
     def query_inverse_relations_with_confidence(
         self, topic: str, relation_type: Optional[str] = None
@@ -357,6 +412,30 @@ class KonzeptNetzwerkCore:
     def get_production_rule_statistics(self) -> Dict[str, Any]:
         """Get statistics about all production rules."""
         return self.queries.get_production_rule_statistics()
+
+    # ============================================================================
+    # Batch Operations (delegated to specialized modules)
+    # ============================================================================
+
+    def batch_assert_relations(
+        self, relations: List[Dict[str, Any]], batch_size: int = 100
+    ) -> Dict[str, int]:
+        """
+        Batch-create relations using UNWIND (5-10x faster than individual calls).
+
+        Args:
+            relations: List of dicts with keys:
+                - subject (str): Subject entity name
+                - relation (str): Relation type
+                - object (str): Object entity name
+                - confidence (float, optional): Default 0.85
+                - source_sentence (str, optional): Source text
+            batch_size: Batch size per UNWIND query (default: 100)
+
+        Returns:
+            Dict with {relation_type: created_count}
+        """
+        return self.relations.batch_assert_relations(relations, batch_size)
 
     # ============================================================================
     # Cache Management (delegated to specialized modules)

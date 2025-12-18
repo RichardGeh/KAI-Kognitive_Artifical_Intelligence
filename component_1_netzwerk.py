@@ -106,13 +106,47 @@ class KonzeptNetzwerk:
         relation: str,
         object: str,
         source_sentence: Optional[str] = None,
+        confidence: float = 0.85,
     ) -> bool:
         """Create a relation between two concepts."""
-        return self._core.assert_relation(subject, relation, object, source_sentence)
+        return self._core.assert_relation(
+            subject, relation, object, source_sentence, confidence
+        )
 
-    def query_graph_for_facts(self, topic: str) -> Dict[str, List[str]]:
-        """Query all facts about a topic."""
-        return self._core.query_graph_for_facts(topic)
+    def assert_negation(
+        self,
+        subject: str,
+        base_relation: str,
+        object: str,
+        source_sentence: Optional[str] = None,
+    ) -> bool:
+        """
+        Create a negation relation (Quick Win #5).
+
+        Delegates to KonzeptNetzwerkCore.assert_negation().
+        Critical for logic puzzles and exception-based reasoning.
+        """
+        return self._core.assert_negation(
+            subject, base_relation, object, source_sentence
+        )
+
+    def query_graph_for_facts(
+        self, topic: str, min_confidence: float = 0.0, sort_by_confidence: bool = False
+    ) -> Dict[str, List[str]]:
+        """
+        Query all facts about a topic.
+
+        Args:
+            topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
+            sort_by_confidence: Sort results by confidence DESC. Default False
+
+        Returns:
+            Dict with {relation_type: [target_concepts]}
+        """
+        return self._core.query_graph_for_facts(
+            topic, min_confidence, sort_by_confidence
+        )
 
     def query_inverse_relations(
         self, topic: str, relation_type: Optional[str] = None
@@ -121,10 +155,19 @@ class KonzeptNetzwerk:
         return self._core.query_inverse_relations(topic, relation_type)
 
     def query_graph_for_facts_with_confidence(
-        self, topic: str
+        self, topic: str, min_confidence: float = 0.0
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Query all facts about a topic WITH confidence values."""
-        return self._core.query_graph_for_facts_with_confidence(topic)
+        """
+        Query all facts about a topic WITH confidence values.
+
+        Args:
+            topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
+
+        Returns:
+            Dict with {relation_type: [{"target": str, "confidence": float, "timestamp": str}]}
+        """
+        return self._core.query_graph_for_facts_with_confidence(topic, min_confidence)
 
     def query_inverse_relations_with_confidence(
         self, topic: str, relation_type: Optional[str] = None
@@ -243,11 +286,55 @@ class KonzeptNetzwerk:
         """Create a learning episode."""
         return self._memory.create_episode(episode_type, content, metadata)
 
+    def batch_create_episodes(
+        self, episodes: List[Dict[str, Any]], batch_size: int = 100
+    ) -> List[str]:
+        """
+        Batch-create episodes using UNWIND (10x faster than individual calls).
+
+        Args:
+            episodes: List of dicts with keys:
+                - episode_type (str): Type of episode
+                - content (str): Episode content
+                - metadata (dict, optional): Additional metadata
+            batch_size: Batch size per UNWIND query (default: 100)
+
+        Returns:
+            List of created episode IDs (UUIDs)
+        """
+        return self._memory.batch_create_episodes(episodes, batch_size)
+
+    def batch_assert_relations(
+        self, relations: List[Dict[str, Any]], batch_size: int = 100
+    ) -> Dict[str, int]:
+        """
+        Batch-create relations using UNWIND (5-10x faster than individual calls).
+
+        Args:
+            relations: List of dicts with keys:
+                - subject (str): Subject entity name
+                - relation (str): Relation type
+                - object (str): Object entity name
+                - confidence (float, optional): Default 0.85
+                - source_sentence (str, optional): Source text
+            batch_size: Batch size per UNWIND query (default: 100)
+
+        Returns:
+            Dict with {relation_type: created_count}
+        """
+        return self._core.batch_assert_relations(relations, batch_size)
+
     def link_fact_to_episode(
         self, subject: str, relation: str, object: str, episode_id: str
     ) -> bool:
         """Link a fact to an episode."""
         return self._memory.link_fact_to_episode(subject, relation, object, episode_id)
+
+    def link_facts_to_episode_batch(
+        self, facts: List[Dict[str, str]], episode_id: str
+    ) -> int:
+        """Link multiple facts to episode in batch (10-20x faster)."""
+        return self._memory.link_facts_to_episode_batch(facts, episode_id)
 
     def query_episodes_about(self, topic: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Find episodes about a topic."""

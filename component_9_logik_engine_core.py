@@ -72,7 +72,20 @@ logger = get_logger(__name__)
 Binding = Dict[str, Any]
 
 # SECURITY: Allowed predicates for Cypher injection prevention
-ALLOWED_PREDICATES = {"IS_A", "PART_OF", "LOCATED_IN", "CAPABLE_OF", "HAS_PROPERTY"}
+# UPDATED: Added negation relation types (Quick Win #5)
+ALLOWED_PREDICATES = {
+    "IS_A",
+    "PART_OF",
+    "LOCATED_IN",
+    "CAPABLE_OF",
+    "HAS_PROPERTY",
+    # Negation relations (Quick Win #5)
+    "CANNOT_DO",
+    "NOT_IS_A",
+    "HAS_NOT_PROPERTY",
+    "NOT_PART_OF",
+    "NOT_LOCATED_IN",
+}
 
 
 def _validate_predicate(pred: str) -> str:
@@ -635,7 +648,16 @@ class Engine:
             return None
 
         # Nur für relationale Predicates sinnvoll
-        if goal.pred not in ["IS_A", "PART_OF", "LOCATED_IN", "CAPABLE_OF"]:
+        # UPDATED: Added negation predicates (Quick Win #5)
+        if goal.pred not in [
+            "IS_A",
+            "PART_OF",
+            "LOCATED_IN",
+            "CAPABLE_OF",
+            "CANNOT_DO",
+            "NOT_IS_A",
+            "HAS_NOT_PROPERTY",
+        ]:
             return None
 
         # SECURITY: Validate predicate to prevent Cypher injection

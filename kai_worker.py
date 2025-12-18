@@ -340,9 +340,38 @@ class KaiWorker(QObject):
                 self.context.set_data("original_query", query)
                 return
 
-            # PATTERN RECOGNITION: Tippfehler-Korrektur & Vorhersagen
-            # WICHTIG: Muss auf ORIGINAL query laufen damit "Lerne:" erkannt wird!
-            if self.pattern_orchestrator:
+            # WICHTIG: Entferne UI-Präfixe für weitere Verarbeitung
+            # (Muss vor allen anderen Processing-Schritten passieren)
+            cleaned_query = self._remove_ui_prefixes(query)
+
+            # ===================================================================
+            # PHASE: INPUT ORCHESTRATION (Runs FIRST for complex inputs)
+            # ===================================================================
+            # Prüfe ob Eingabe orchestriert werden sollte (mehrere Segmente)
+            # WICHTIG: Dies läuft VOR Pattern Recognition, damit komplexe
+            # Multi-Line Logic Puzzles nicht durch Typo Detection blockiert werden
+            should_orchestrate = self.input_orchestrator.should_orchestrate(
+                cleaned_query
+            )
+
+            if should_orchestrate:
+                logger.info(
+                    "Komplexe Multi-Line-Eingabe erkannt, überspringe Pattern Recognition"
+                )
+                orchestration_result = self.input_orchestrator.orchestrate_input(
+                    cleaned_query
+                )
+            else:
+                orchestration_result = None
+
+            # ===================================================================
+            # PHASE: PATTERN RECOGNITION (Only for simple single-line inputs)
+            # ===================================================================
+            # Nur ausführen wenn KEINE Orchestration aktiviert wurde
+            if not should_orchestrate and self.pattern_orchestrator:
+                logger.debug(
+                    "Einfache Eingabe erkannt, führe Pattern Recognition durch"
+                )
                 pattern_result = self.pattern_orchestrator.process_input(query)
 
                 # Bei Tippfehler-Rückfrage
@@ -357,8 +386,8 @@ class KaiWorker(QObject):
                     self.context.set_data("original_query", query)
                     return
 
-                # Nutze korrigierten Text
-                query = pattern_result["corrected_text"]
+                # Nutze korrigierten Text für weitere Verarbeitung
+                cleaned_query = pattern_result["corrected_text"]
 
                 # Log Auto-Korrekturen
                 if pattern_result.get("typo_corrections"):
@@ -368,18 +397,9 @@ class KaiWorker(QObject):
                                 f"Auto-Korrektur: '{correction['original']}' -> '{correction['correction']}' (conf={correction['confidence']:.2f})"
                             )
 
-            # WICHTIG: Entferne UI-Präfixe für weitere Verarbeitung
-            # Pattern Recognition hat bereits auf Original-Text geprüft und ggf. übersprungen
-            cleaned_query = self._remove_ui_prefixes(query)
-
             # ===================================================================
-            # PHASE: INPUT ORCHESTRATION (Neu für Logik-Rätsel)
+            # PHASE: ORCHESTRATED PROCESSING (Complex inputs)
             # ===================================================================
-            # Prüfe ob Eingabe orchestriert werden sollte (mehrere Segmente)
-            orchestration_result = self.input_orchestrator.orchestrate_input(
-                cleaned_query
-            )
-
             if orchestration_result:
                 # Komplexe Eingabe erkannt (Erklärungen + Fragen)
                 logger.info("Orchestrierte Verarbeitung aktiviert")
@@ -501,6 +521,9 @@ class KaiWorker(QObject):
                                     trace=["Logic Puzzle Solver"],
                                     strategy="logic_puzzle",
                                     confidence=1.0,
+                                    proof_tree=result.get(
+                                        "proof_tree"
+                                    ),  # Include ProofTree
                                 )
                                 self.signals.finished.emit(response)
                                 logger.info(
@@ -671,6 +694,8 @@ class KaiWorker(QObject):
             self.signals.set_main_goal.emit(plan.description)
             knowledge_context = {"intent": intent}
             final_response_text = "Plan ausgeführt, aber keine Antwort formuliert."
+            proof_tree = None
+            final_confidence = 0.8
 
             # Erstelle Working Memory Kontext für diesen Plan
             context_type_mapping = {
@@ -737,6 +762,11 @@ class KaiWorker(QObject):
 
                     if "final_response" in result:
                         final_response_text = result["final_response"]
+                        # Extract proof_tree and confidence from result
+                        if "proof_tree" in result:
+                            proof_tree = result["proof_tree"]
+                        if "confidence" in result:
+                            final_confidence = result["confidence"]
                 else:
                     sub_goal.status = GoalStatus.FAILED
                     sub_goal.error_message = result.get("error", "Unbekannter Fehler")
@@ -785,7 +815,11 @@ class KaiWorker(QObject):
             # Pop context nach erfolgreicher Ausführung
             self.working_memory.pop_context()
 
-            return KaiResponse(text=final_response_text)
+            return KaiResponse(
+                text=final_response_text,
+                proof_tree=proof_tree,
+                confidence=final_confidence,
+            )
 
         except KAIException as e:
             # Nutzerfreundliche Fehlermeldung für KAI-spezifische Exceptions

@@ -90,3 +90,108 @@ def kai_worker_with_mocks(netzwerk_session):
         worker.is_initialized_successfully
     ), "KAI Worker Initialisierung fehlgeschlagen"
     return worker
+
+
+# ============================================================================
+# SCENARIO TESTING FIXTURES (for integration_scenarios/)
+# ============================================================================
+
+
+@pytest.fixture(scope="session")
+def scenario_mode():
+    """
+    Enable scenario testing mode with extended timeouts and comprehensive logging.
+    This fixture is automatically available to all scenario tests.
+    """
+    import logging
+
+    # Enable debug logging for scenario tests
+    logging.getLogger().setLevel(logging.DEBUG)
+    logger.info("Scenario testing mode enabled")
+    return True
+
+
+@pytest.fixture(scope="function")
+def kai_worker_scenario_mode(
+    netzwerk_session, embedding_service_session, scenario_mode
+):
+    """
+    KAI worker configured specifically for scenario testing.
+
+    Includes:
+    - Extended timeouts (1 hour default)
+    - Comprehensive logging enabled
+    - Deeper reasoning allowed (max_reasoning_depth=20)
+    - All reasoning engines enabled
+    """
+    from kai_worker import KaiWorker
+
+    worker = KaiWorker(netzwerk_session, embedding_service_session)
+    worker.signals = MagicMock()
+
+    # Configure for scenario testing
+    if hasattr(worker, "enable_comprehensive_logging"):
+        worker.enable_comprehensive_logging = True
+
+    if hasattr(worker, "max_reasoning_depth"):
+        worker.max_reasoning_depth = 20  # Allow deeper reasoning
+
+    if hasattr(worker, "timeout_seconds"):
+        worker.timeout_seconds = 3600  # 1 hour timeout
+
+    logger.info("KAI worker configured for scenario testing mode")
+    return worker
+
+
+@pytest.fixture(scope="function")
+def scenario_timeout():
+    """
+    Return timeout value for scenario tests (in seconds).
+    Can be overridden by SCENARIO_TIMEOUT environment variable.
+    """
+    import os
+
+    return int(os.environ.get("SCENARIO_TIMEOUT", "3600"))  # Default 1 hour
+
+
+@pytest.fixture(scope="function")
+def progress_reporter(request):
+    """
+    Progress reporter for long-running scenario tests.
+    Automatically configured with test name.
+    """
+    from tests.integration_scenarios.utils.progress_reporter import ProgressReporter
+
+    test_name = request.node.name
+    reporter = ProgressReporter(test_name=test_name, total_steps=10)
+    return reporter
+
+
+@pytest.fixture(scope="function")
+def scenario_logger(request, tmp_path):
+    """
+    Comprehensive logger for scenario test execution.
+    Logs are saved to tests/integration_scenarios/results/ directory.
+    """
+    from tests.integration_scenarios.utils.result_logger import ScenarioLogger
+
+    test_name = request.node.name
+    # Create results directory
+    results_dir = Path(__file__).parent / "integration_scenarios" / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    logger_instance = ScenarioLogger(scenario_name=test_name, output_dir=results_dir)
+    return logger_instance
+
+
+@pytest.fixture(scope="function")
+def confidence_tracker():
+    """
+    Confidence calibration tracker for evaluating confidence vs. correctness.
+    """
+    from tests.integration_scenarios.utils.confidence_calibrator import (
+        ConfidenceCalibrationTracker,
+    )
+
+    tracker = ConfidenceCalibrationTracker()
+    return tracker

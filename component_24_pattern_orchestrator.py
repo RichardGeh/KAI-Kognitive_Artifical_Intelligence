@@ -137,6 +137,7 @@ class PatternOrchestrator:
         # Diese sollten direkt zum MeaningExtractor gehen ohne Typo-Detection
         import re
 
+        # Early Exit: Commands (single-line only)
         command_prefixes = [
             r"^\s*definiere:",
             r"^\s*lerne muster:",
@@ -145,21 +146,40 @@ class PatternOrchestrator:
             r"^\s*(?:lese datei|ingestiere dokument|verarbeite pdf|lade datei):",
         ]
 
-        # WICHTIG: Auch Fragen überspringen!
-        # Bei "Was ist X?" will der Benutzer eine Antwort, keine Typo-Rückfrage
-        question_patterns = [
-            r"^\s*(?:was|wer|wie|wo|wann|warum|wieso|weshalb|wozu)\s+",
-            r"^\s*frage:\s*",
-        ]
-
-        for pattern in command_prefixes + question_patterns:
+        for pattern in command_prefixes:
             if re.match(pattern, text, re.IGNORECASE):
                 logger.debug(
-                    "Command/Frage erkannt, überspringe Pattern Recognition",
+                    "Command erkannt, überspringe Pattern Recognition",
                     extra={"text_preview": text[:50], "pattern": pattern},
                 )
-                # Gib Input unverändert zurück
                 return result
+
+        # Early Exit: Questions (single-line OR multi-line)
+        # WICHTIG: Bei "Was ist X?" will der Benutzer eine Antwort, keine Typo-Rückfrage
+        # FIX 2025-12-13: Unterstützt multi-line Fragen (z.B. Logic Puzzles mit Frage am Ende)
+        # Verwendet re.search() statt re.match() um GESAMTEN Text zu prüfen, nicht nur erste Zeile
+        question_patterns = [
+            r"(?:^|\n)\s*(?:was|wer|wie|wo|wann|warum|wieso|weshalb|wozu|welche)\s+",  # Question words (any line)
+            r"\?\s*$",  # Ends with question mark
+        ]
+
+        for pattern in question_patterns:
+            if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+                logger.debug(
+                    "Frage erkannt (single/multi-line), überspringe Pattern Recognition",
+                    extra={"text_preview": text[:100]},
+                )
+                return result
+
+        # Early Exit: Multi-line structured inputs (likely logic puzzles)
+        # FIX 2025-12-13: Erkennt nummerierte Listen (1. ... 2. ... 3. ...)
+        # Logic Puzzles haben typischerweise dieses Format
+        if re.search(r"(?:^|\n)\s*\d+\.\s+.+(?:\n\s*\d+\.\s+.+)+", text, re.MULTILINE):
+            logger.debug(
+                "Strukturierte Eingabe (nummerierte Punkte) erkannt, überspringe Pattern Recognition",
+                extra={"text_preview": text[:100]},
+            )
+            return result
 
         # 1. Tippfehler-Korrektur
         words = text.split()

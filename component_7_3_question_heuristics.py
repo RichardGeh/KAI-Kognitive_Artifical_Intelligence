@@ -79,6 +79,10 @@ class QuestionHeuristicsExtractor:
             if mp := self._match_what_is_question(text):
                 return mp
 
+            # Heuristik 4.5: "Was macht X?" Frage (action-based questions)
+            if mp := self._match_was_macht_question(text):
+                return mp
+
             # Heuristik 5: "Wo ist/liegt X?" Frage
             if mp := self._match_where_is_question(text):
                 return mp
@@ -420,6 +424,92 @@ class QuestionHeuristicsExtractor:
                     arguments={"topic": cleaned_topic},
                 )
             ]
+        return None
+
+    def _match_was_macht_question(self, text: str) -> list[MeaningPoint] | None:
+        """
+        Erkennt 'Was macht X?' Fragen (action-based questions).
+
+        Muster: 'Was macht [NOUN]?' oder 'Was tut [NOUN]?'
+        Beispiele:
+          - 'Was macht ein Hund?' -> (0.90, 'hund', 'action')
+          - 'Was tut der Vogel?' -> (0.90, 'vogel', 'action')
+          - 'Was kann X machen?' -> (0.92, 'X', 'capability')
+
+        Returns:
+            Liste mit MeaningPoint oder None
+        """
+        # Pattern 1: "Was macht X?"
+        match_macht = re.match(
+            r"^\s*was\s+macht\s+(?:ein|eine|der|die|das|den|dem|des)?\s*(.+?)\??\s*$",
+            text,
+            re.IGNORECASE,
+        )
+        if match_macht:
+            topic_str_raw = match_macht.group(1).strip()
+            cleaned_topic = self.text_normalizer.clean_entity(topic_str_raw)
+            confidence = 0.90 if text.rstrip().endswith("?") else 0.85
+            return [
+                create_meaning_point(
+                    category=MeaningPointCategory.QUESTION,
+                    cue="heuristic_was_macht_question",
+                    text_span=text,
+                    confidence=confidence,
+                    arguments={
+                        "topic": cleaned_topic,
+                        "question_type": "action",
+                        "relation_hint": "CAPABLE_OF",
+                    },
+                )
+            ]
+
+        # Pattern 2: "Was tut X?"
+        match_tut = re.match(
+            r"^\s*was\s+tut\s+(?:ein|eine|der|die|das|den|dem|des)?\s*(.+?)\??\s*$",
+            text,
+            re.IGNORECASE,
+        )
+        if match_tut:
+            topic_str_raw = match_tut.group(1).strip()
+            cleaned_topic = self.text_normalizer.clean_entity(topic_str_raw)
+            confidence = 0.90 if text.rstrip().endswith("?") else 0.85
+            return [
+                create_meaning_point(
+                    category=MeaningPointCategory.QUESTION,
+                    cue="heuristic_was_tut_question",
+                    text_span=text,
+                    confidence=confidence,
+                    arguments={
+                        "topic": cleaned_topic,
+                        "question_type": "action",
+                        "relation_hint": "CAPABLE_OF",
+                    },
+                )
+            ]
+
+        # Pattern 3: "Was kann X machen?" / "Was kann X tun?"
+        match_kann_machen = re.match(
+            r"^\s*was\s+kann\s+(?:ein|eine|der|die|das|den|dem|des)?\s*(.+?)\s+(?:machen|tun)\??\s*$",
+            text,
+            re.IGNORECASE,
+        )
+        if match_kann_machen:
+            topic_str_raw = match_kann_machen.group(1).strip()
+            cleaned_topic = self.text_normalizer.clean_entity(topic_str_raw)
+            return [
+                create_meaning_point(
+                    category=MeaningPointCategory.QUESTION,
+                    cue="heuristic_was_kann_machen_question",
+                    text_span=text,
+                    confidence=0.92,  # Very explicit pattern
+                    arguments={
+                        "topic": cleaned_topic,
+                        "question_type": "capability",
+                        "relation_hint": "CAPABLE_OF",
+                    },
+                )
+            ]
+
         return None
 
     def _match_where_is_question(self, text: str) -> list[MeaningPoint] | None:

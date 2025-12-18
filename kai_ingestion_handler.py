@@ -683,6 +683,155 @@ class KaiIngestionHandler:
             if created > 0:
                 break
 
+        # Wenn keine Regex-Regel matched, versuche linguistische Verb-Extraktion
+        if facts_created == 0:
+            verb_facts_created = self._extract_verb_based_facts(
+                sentence_text, episode_id
+            )
+            facts_created += verb_facts_created
+
+        return facts_created
+
+    def _extract_verb_based_facts(
+        self, sentence_text: str, episode_id: Optional[str] = None
+    ) -> int:
+        """
+        Extrahiert Fakten aus einfachen Satz-Verb-Konstruktionen.
+
+        Muster: Subject VERB (Object)
+        Beispiele:
+          - "Ein Hund bellt" -> (hund, CAPABLE_OF, bellen, 0.85)
+          - "Der Vogel fliegt" -> (vogel, CAPABLE_OF, fliegen, 0.85)
+          - "Das Kind spielt Ball" -> (kind, CAPABLE_OF, spielen, 0.85)
+
+        Args:
+            sentence_text: Der zu analysierende Satz
+            episode_id: Optional - Episode-ID für Tracking
+
+        Returns:
+            Anzahl der erstellten Fakten
+        """
+        facts_created = 0
+
+        try:
+            # Parse mit spaCy
+            doc = self.preprocessor.process(sentence_text)
+
+            # Finde Subject und Verb
+            subject = None
+            verb = None
+            obj = None
+            has_negation = False  # NEW: Track negation
+
+            for token in doc:
+                # NEW: Detect negation markers
+                if token.dep_ == "ng" or token.text.lower() in [
+                    "nicht",
+                    "kein",
+                    "keine",
+                    "keinen",
+                    "nie",
+                    "niemals",
+                ]:
+                    has_negation = True
+                    logger.debug(f"  [VERB-EXTRACTION] Negation erkannt: {token.text}")
+
+                # Finde Subject (NOUN/PROPN mit Subjekt-Dependency)
+                if token.dep_ in ["sb", "nsubj", "nsubjpass"] and token.pos_ in [
+                    "NOUN",
+                    "PROPN",
+                ]:
+                    subject = token.lemma_.lower()
+                    logger.debug(f"  [VERB-EXTRACTION] Subject gefunden: {subject}")
+
+                # Finde Haupt-Verb (nicht sein/haben/werden)
+                if token.pos_ == "VERB" and token.dep_ in ["ROOT", "oc"]:
+                    # Überspringe Kopula-Verben (werden von Regex-Regeln abgedeckt)
+                    if token.lemma_.lower() not in ["sein", "haben", "werden"]:
+                        # Use original text form (conjugated) instead of lemma
+                        # This preserves "bellt" instead of "bellen"
+                        verb = token.text.lower()
+                        logger.debug(f"  [VERB-EXTRACTION] Verb gefunden: {verb}")
+
+                # Finde optionales direktes Objekt
+                if token.dep_ in ["oa", "dobj", "obj"] and token.pos_ in [
+                    "NOUN",
+                    "PROPN",
+                ]:
+                    obj = token.lemma_.lower()
+                    logger.debug(f"  [VERB-EXTRACTION] Objekt gefunden: {obj}")
+
+            # Wenn wir Subject und Verb gefunden haben, erstelle Fakt
+            if subject and verb:
+                # Konstruiere vollständige Aktion
+                if obj:
+                    action = f"{verb} {obj}"
+                else:
+                    action = verb
+
+                # Normalisiere mit Text Normalizer
+                subject_clean = self.formatter.clean_entity(subject)
+                action_clean = self.formatter.clean_entity(action)
+
+                # Validierung: Mindestlänge
+                if not subject_clean or not action_clean:
+                    logger.debug(
+                        f"  [VERB-EXTRACTION] Überspringe: subject='{subject_clean}', action='{action_clean}'"
+                    )
+                    return 0
+
+                if len(subject_clean) < 2 or len(action_clean) < 2:
+                    logger.debug(
+                        f"  [VERB-EXTRACTION] Zu kurz: subject='{subject_clean}' ({len(subject_clean)}), "
+                        f"action='{action_clean}' ({len(action_clean)})"
+                    )
+                    return 0
+
+                # NEW: Handle negation vs. affirmation
+                if has_negation:
+                    # Negation: Use CANNOT_DO
+                    logger.info(
+                        f"  [VERB-EXTRACTION] Extrahiert (NEGATION): ({subject_clean})-[CANNOT_DO]->({action_clean})"
+                    )
+                    created = self.netzwerk.assert_negation(
+                        subject_clean, "CAPABLE_OF", action_clean, sentence_text
+                    )
+                    relation_type = "CANNOT_DO"
+                else:
+                    # Affirmation: Use CAPABLE_OF
+                    logger.info(
+                        f"  [VERB-EXTRACTION] Extrahiert: ({subject_clean})-[CAPABLE_OF]->({action_clean})"
+                    )
+                    created = self.netzwerk.assert_relation(
+                        subject_clean, "CAPABLE_OF", action_clean, sentence_text
+                    )
+                    relation_type = "CAPABLE_OF"
+
+                # Verknüpfe mit Episode
+                if created and episode_id:
+                    link_success = self.netzwerk.link_fact_to_episode(
+                        subject_clean, relation_type, action_clean, episode_id
+                    )
+                    if link_success:
+                        logger.debug(
+                            f"  [VERB-EXTRACTION] Mit Episode {episode_id[:8]} verknüpft"
+                        )
+
+                if created:
+                    logger.info(
+                        f"  [VERB-EXTRACTION] GESPEICHERT: ({subject_clean})-[{relation_type}]->({action_clean})"
+                    )
+                    facts_created = 1
+                else:
+                    logger.debug(
+                        f"  [VERB-EXTRACTION] Bereits bekannt: ({subject_clean})-[{relation_type}]->({action_clean})"
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"Fehler bei Verb-Extraktion für '{sentence_text}': {e}", exc_info=True
+            )
+
         return facts_created
 
     def _track_word_usage(self, sentence_text: str) -> Dict[str, int]:

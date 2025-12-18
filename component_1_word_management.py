@@ -30,6 +30,19 @@ INFO_TYPE_ALIASES: Dict[str, str] = {
     "synonym": "synonym",
 }
 
+# Whitelist of allowed word attributes (security - prevent Cypher injection)
+ALLOWED_ATTRIBUTES = {
+    "pos",
+    "frequency",
+    "custom_meta",
+    "importance",
+    "lemma",
+    "created_at",
+    "updated_at",
+    "confidence",
+    "source",
+}
+
 
 class WordManager:
     """
@@ -156,11 +169,14 @@ class WordManager:
 
         Args:
             lemma: The word lemma
-            attribut_name: Attribute name (will be sanitized)
+            attribut_name: Attribute name (will be sanitized and validated)
             attribut_wert: Attribute value
 
         Returns:
             True if successfully set, False on error
+
+        Raises:
+            ValueError: If attribute name is not in whitelist (security)
         """
         if not self.driver:
             logger.warning("set_wort_attribut: Kein Driver verfügbar")
@@ -177,6 +193,18 @@ class WordManager:
         if not safe_attribut_name:
             logger.warning(f"Ungültiger Attributname '{attribut_name}'.")
             return False
+
+        # Validate against whitelist (security - prevent Cypher injection)
+        if safe_attribut_name not in ALLOWED_ATTRIBUTES:
+            error_msg = (
+                f"Attribute '{safe_attribut_name}' not in whitelist. "
+                f"Allowed: {', '.join(sorted(ALLOWED_ATTRIBUTES))}"
+            )
+            logger.warning(
+                "Attribute not in whitelist",
+                extra={"attribute": safe_attribut_name, "lemma": lemma},
+            )
+            raise ValueError(error_msg)
 
         lemma_lower = lemma.lower()
 

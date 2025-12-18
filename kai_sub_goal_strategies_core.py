@@ -130,6 +130,39 @@ class QuestionStrategy(SubGoalStrategy):
             or bool(fact_data["synonyms"])
         )  # has_any_knowledge unused
 
+        # Create ProofTree for direct facts
+        proof_tree = None
+        if fact_data["facts"]:
+            try:
+                from component_17_proof_explanation import (
+                    ProofStep,
+                    ProofTree,
+                    StepType,
+                )
+
+                proof_tree = ProofTree(query=f"Was macht {topic}?")
+
+                # Create proof steps for each fact
+                for relation_type, objects in fact_data["facts"].items():
+                    for obj in objects[:3]:  # Limit to 3
+                        step = ProofStep(
+                            step_id=f"direct_{topic}_{relation_type}_{obj}",
+                            step_type=StepType.FACT_MATCH,
+                            inputs=[topic],
+                            output=f"{topic} {relation_type} {obj}",
+                            confidence=1.0,
+                            explanation_text=f"Direkter Fakt: {topic} -> {obj}",
+                            source_component="direct_fact_lookup",
+                        )
+                        proof_tree.add_root_step(step)
+
+                logger.debug(
+                    f"[ProofTree] Created for direct facts: {len(proof_tree.root_steps)} steps"
+                )
+            except Exception as e:
+                logger.warning(f"[ProofTree] Failed to create: {e}")
+                proof_tree = None
+
         # Tracke erfolgreiche Faktensuche
         if fact_data["facts"] or fact_data["bedeutungen"]:
             self.worker.working_memory.add_reasoning_state(
@@ -190,6 +223,7 @@ class QuestionStrategy(SubGoalStrategy):
                     "bedeutungen": fact_data.get("bedeutungen", []),
                     "fuzzy_suggestions": [],
                     "backward_chaining_used": False,
+                    "proof_tree": proof_tree,
                 }
 
             # Topic existiert - versuche Inference nur für IS_A
@@ -220,6 +254,7 @@ class QuestionStrategy(SubGoalStrategy):
                         is False,
                         "is_hypothesis": inference_result.get("is_hypothesis", False),
                         "proof_trace": proof_trace,
+                        "proof_tree": inference_result.get("proof_tree"),
                     }
 
             # Backward-Chaining hat keine Ergebnisse geliefert
@@ -232,6 +267,7 @@ class QuestionStrategy(SubGoalStrategy):
             "bedeutungen": fact_data.get("bedeutungen", []),
             "fuzzy_suggestions": [],
             "backward_chaining_used": False,
+            "proof_tree": proof_tree,
         }
 
     def _check_knowledge_gap(
@@ -296,21 +332,23 @@ class QuestionStrategy(SubGoalStrategy):
         bedeutungen = context.get("bedeutungen", [])
         backward_chaining_used = context.get("backward_chaining_used", False)
         is_hypothesis = context.get("is_hypothesis", False)
+        proof_tree = context.get("proof_tree")
+        confidence = context.get("confidence", 0.8)
 
         # Spezifische Antwortgenerierung basierend auf Fragetyp
         if question_type == "person_query":
-            response = formatter.format_person_answer(
+            response_text = formatter.format_person_answer(
                 topic, facts, bedeutungen, synonyms
             )
         elif question_type == "time_query":
-            response = formatter.format_time_answer(topic, facts, bedeutungen)
+            response_text = formatter.format_time_answer(topic, facts, bedeutungen)
         elif question_type == "process_query":
-            response = formatter.format_process_answer(topic, facts, bedeutungen)
+            response_text = formatter.format_process_answer(topic, facts, bedeutungen)
         elif question_type == "reason_query":
-            response = formatter.format_reason_answer(topic, facts, bedeutungen)
+            response_text = formatter.format_reason_answer(topic, facts, bedeutungen)
         else:
             # Standard-Antwort
-            response = formatter.format_standard_answer(
+            response_text = formatter.format_standard_answer(
                 topic,
                 facts,
                 bedeutungen,
@@ -320,7 +358,11 @@ class QuestionStrategy(SubGoalStrategy):
                 is_hypothesis=is_hypothesis,
             )
 
-        return True, {"final_response": response}
+        return True, {
+            "final_response": response_text,
+            "proof_tree": proof_tree,
+            "confidence": confidence,
+        }
 
 
 # ============================================================================

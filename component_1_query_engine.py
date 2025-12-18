@@ -79,7 +79,9 @@ class QueryEngine:
 
         logger.debug("QueryEngine initialisiert mit CacheManager")
 
-    def query_graph_for_facts(self, topic: str) -> Dict[str, List[str]]:
+    def query_graph_for_facts(
+        self, topic: str, min_confidence: float = 0.0, sort_by_confidence: bool = False
+    ) -> Dict[str, List[str]]:
         """
         Query the graph for all known outgoing facts (relationships) for a topic.
 
@@ -90,10 +92,25 @@ class QueryEngine:
 
         Args:
             topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
+            sort_by_confidence: Sort results by confidence DESC. Default False
 
         Returns:
             Dict with {relation_type: [target_concepts]}
+
+        Raises:
+            ValueError: If min_confidence is out of range [0.0, 1.0]
+
+        Example:
+            >>> query_engine.query_graph_for_facts("hund", min_confidence=0.7)
+            {"IS_A": ["saeugetier"], "HAS_PROPERTY": ["freundlich"]}
         """
+        # Validate confidence range (security - prevent invalid data)
+        if not (0.0 <= min_confidence <= 1.0):
+            raise ValueError(
+                f"min_confidence must be in [0.0, 1.0], got {min_confidence}"
+            )
+
         if not self.driver:
             logger.error(
                 "query_graph_for_facts: Kein DB-Driver verfügbar",
@@ -101,13 +118,16 @@ class QueryEngine:
             )
             return {}
 
-        # Cache key
-        cache_key = f"facts:{topic.lower()}"
+        # Cache key includes filter parameters for correctness
+        cache_key = f"facts:{topic.lower()}:min_conf={min_confidence}:sorted={sort_by_confidence}"
 
         # Check cache
         cached = self.cache_mgr.get("netzwerk_facts", cache_key)
         if cached is not None:
-            logger.debug("Cache-Hit für query_graph_for_facts", extra={"topic": topic})
+            logger.debug(
+                "Cache-Hit für query_graph_for_facts",
+                extra={"topic": topic, "min_confidence": min_confidence},
+            )
             return cached
 
         try:
@@ -115,13 +135,21 @@ class QueryEngine:
                 with self.driver.session(database="neo4j") as session:
                     self.word_manager.ensure_wort_und_konzept(topic)
 
-                    # Main query: All outgoing relations
+                    # Main query: All outgoing relations with confidence filter
                     result = session.run(
                         """
                         MATCH (s:Konzept {name: $topic})-[r]->(o:Konzept)
-                        RETURN type(r) AS relation, o.name AS object
+                        WHERE COALESCE(r.confidence, 1.0) >= $min_conf
+                        RETURN type(r) AS relation,
+                               o.name AS object,
+                               COALESCE(r.confidence, 1.0) AS confidence
+                        ORDER BY
+                            CASE WHEN $sorted THEN confidence ELSE 0 END DESC,
+                            type(r), o.name
                         """,
                         topic=topic.lower(),
+                        min_conf=min_confidence,
+                        sorted=sort_by_confidence,
                     )
 
                     facts: Dict[str, List[str]] = defaultdict(list)
@@ -253,7 +281,7 @@ class QueryEngine:
             return {}
 
     def query_graph_for_facts_with_confidence(
-        self, topic: str
+        self, topic: str, min_confidence: float = 0.0
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Query the graph for all outgoing facts AND their confidence values and timestamps.
@@ -263,6 +291,7 @@ class QueryEngine:
 
         Args:
             topic: The concept to query
+            min_confidence: Minimum confidence threshold (0.0-1.0). Default 0.0 = no filter
 
         Returns:
             Dict with {relation_type: [{"target": str, "confidence": float, "timestamp": str}]}
@@ -291,15 +320,18 @@ class QueryEngine:
                     self.word_manager.ensure_wort_und_konzept(topic)
 
                     # Query: All outgoing relations with confidence AND timestamp
+                    # Filter by min_confidence if specified
                     result = session.run(
                         """
                         MATCH (s:Konzept {name: $topic})-[r]->(o:Konzept)
+                        WHERE COALESCE(r.confidence, 1.0) >= $min_confidence
                         RETURN type(r) AS relation,
                                o.name AS object,
                                COALESCE(r.confidence, 1.0) AS confidence,
                                toString(r.timestamp) AS timestamp
                         """,
                         topic=topic.lower(),
+                        min_confidence=min_confidence,
                     )
 
                     facts: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -321,6 +353,7 @@ class QueryEngine:
                             "topic": topic,
                             "fact_count": fact_count,
                             "relation_types": list(facts.keys()),
+                            "min_confidence": min_confidence,
                         },
                     )
 

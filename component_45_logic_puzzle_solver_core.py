@@ -57,6 +57,7 @@ class LogicPuzzleSolver:
     def __init__(self):
         self.parser = LogicConditionParser()
         self.solver = SATSolver()
+        self.solver.enable_proof = True  # Enable ProofTree generation
 
         # Lazy import für numerical solver (vermeidet zirkuläre Imports)
         self._numerical_solver = None
@@ -84,7 +85,7 @@ class LogicPuzzleSolver:
 
         text_lower = text.lower()
 
-        # Patterns für numerische Puzzles
+        # Patterns für numerische Puzzles (ohne generisches numbered list pattern)
         numerical_patterns = [
             r"\bzahl\b",
             r"\bteilbar\s+durch\b",
@@ -92,40 +93,80 @@ class LogicPuzzleSolver:
             r"\bdifferenz\b",
             r"\banzahl\s+der\b",
             r"\bteiler\b",
-            r"\b\d+\.\s",  # Numbered statements
         ]
 
-        # Patterns für Entitäten-basierte Puzzles
+        # Meta-constraint patterns (numbered statements mit meta-keywords)
+        # Nur wenn "richtig", "falsch", "wahr", "behauptung" folgen
+        meta_constraint_patterns = [
+            r"\b\d+\.\s+.*(richtig|falsch|wahr|behauptung)",  # "1. ist richtig"
+            r"(erste|letzte|n-te)\s+(richtig|falsch)",  # "erste richtige"
+            r"anzahl\s+der\s+(richtigen|falschen)",  # "Anzahl der richtigen"
+        ]
+
+        # Patterns für Entitäten-basierte Puzzles (erweitert)
         entity_patterns = [
-            r"\b[A-Z][a-z]+\s+(?:trinkt|mag|isst|bestellt)\b",
-            r"\b(?:wer|welche[rs]?)\s+(?:trinkt|mag|isst)\b",
+            r"\b[A-Z][a-z]+\s+(?:trinkt|mag|isst|bestellt|ist|hat)\b",
+            r"\b(?:wer|was|welche[rs]?)\s+(?:trinkt|mag|isst|hat)\b",
+            r"\b(?:ist\s+kein|ist\s+nicht|hat\s+kein)\b",  # Negative constraints
         ]
 
-        # Zähle Matches
+        # Zähle Matches mit Logging
         numerical_count = sum(
-            1 for p in numerical_patterns if re.search(p, text_lower, re.IGNORECASE)
+            len(re.findall(p, text_lower, re.IGNORECASE)) for p in numerical_patterns
+        )
+        meta_count = sum(
+            len(re.findall(p, text_lower, re.IGNORECASE))
+            for p in meta_constraint_patterns
         )
         entity_count = sum(
-            1 for p in entity_patterns if re.search(p, text_lower, re.IGNORECASE)
+            len(re.findall(p, text, re.IGNORECASE)) for p in entity_patterns
         )
 
-        # Berücksichtige auch erkannte Entitäten
-        if len(entities) >= 2:
-            entity_count += 2
+        # Berücksichtige erkannte Entitäten (nur wenn mindestens 2 vorhanden)
+        entity_bonus = 2 if len(entities) >= 2 else 0
+        total_entity_signals = entity_count + entity_bonus
 
-        # Klassifikation
-        if numerical_count >= 2 and entity_count == 0:
-            logger.info(f"Puzzle-Typ: NUMERICAL_CSP ({numerical_count} patterns)")
-            return PuzzleType.NUMERICAL_CSP
-        elif entity_count >= 2 and numerical_count == 0:
-            logger.info(f"Puzzle-Typ: ENTITY_SAT ({entity_count} patterns)")
+        total_numerical = numerical_count + meta_count
+
+        logger.debug(
+            f"Puzzle type detection: numerical={numerical_count}, "
+            f"meta={meta_count}, entity_patterns={entity_count}, "
+            f"entities={len(entities)}, total_entity_signals={total_entity_signals}"
+        )
+
+        # ENTITY_SAT: Entities + entity patterns + keine/wenig numerical
+        # Prioritized classification: Entities are strong indicators
+        if len(entities) >= 2 and entity_count >= 2 and total_numerical == 0:
+            logger.info(
+                f"Puzzle-Typ: ENTITY_SAT ({len(entities)} entities, "
+                f"{entity_count} entity patterns)"
+            )
             return PuzzleType.ENTITY_SAT
-        elif numerical_count >= 1 and entity_count >= 1:
-            logger.info(f"Puzzle-Typ: HYBRID")
+
+        # NUMERICAL_CSP: Viele numerical/meta patterns + keine entities
+        if total_numerical >= 2 and total_entity_signals == 0:
+            logger.info(
+                f"Puzzle-Typ: NUMERICAL_CSP ({total_numerical} numerical patterns)"
+            )
+            return PuzzleType.NUMERICAL_CSP
+
+        # HYBRID: Beide vorhanden
+        if total_numerical >= 1 and total_entity_signals >= 1:
+            logger.info(
+                f"Puzzle-Typ: HYBRID ({total_numerical} numerical, "
+                f"{total_entity_signals} entity)"
+            )
             return PuzzleType.HYBRID
-        else:
-            logger.debug("Puzzle-Typ: UNKNOWN")
-            return PuzzleType.UNKNOWN
+
+        # DEFAULT: ENTITY_SAT wenn Entitäten vorhanden (auch ohne entity patterns)
+        if len(entities) >= 2:
+            logger.info(
+                f"Puzzle-Typ: ENTITY_SAT (default - {len(entities)} entities detected)"
+            )
+            return PuzzleType.ENTITY_SAT
+
+        logger.debug("Puzzle-Typ: UNKNOWN")
+        return PuzzleType.UNKNOWN
 
     def solve(
         self, conditions_text: str, entities: List[str], question: Optional[str] = None
@@ -259,9 +300,14 @@ class LogicPuzzleSolver:
                         original_exception=e,
                     )
 
+                # STEP 5: Extract ProofTree
+                proof_tree = self.solver.get_proof_tree(
+                    query=question or "Logic Puzzle Solution"
+                )
+
                 return {
                     "solution": model,
-                    "proof_tree": None,  # TODO: Extract from solver if needed
+                    "proof_tree": proof_tree,
                     "answer": answer,
                     "result": "SATISFIABLE",
                     "puzzle_type": "entity_sat",
@@ -301,7 +347,7 @@ class LogicPuzzleSolver:
         - XOR (X XOR Y):         (X OR Y) AND (NOT X OR NOT Y)
         - NEVER_BOTH NOT(X AND Y): NOT X OR NOT Y
         - CONJUNCTION (X AND Y): X, Y (separate clauses)
-        - DISJUNCTION (X OR Y):  X OR Y
+        - DISJUNCTION (X OR Y OR Z...):  X OR Y OR Z... (multi-operand)
         - NEGATION (NOT X):      NOT X
 
         Raises:
@@ -345,9 +391,10 @@ class LogicPuzzleSolver:
                     clauses.append(Clause({Literal(y)}))
 
                 elif cond.condition_type == "DISJUNCTION":
-                    # X OR Y
-                    x, y = cond.operands
-                    clauses.append(Clause({Literal(x), Literal(y)}))
+                    # X OR Y OR Z OR ... (multi-operand support)
+                    # Create single clause with all literals
+                    literals = {Literal(var) for var in cond.operands}
+                    clauses.append(Clause(literals))
 
                 elif cond.condition_type == "NEGATION":
                     # NOT X
@@ -434,12 +481,25 @@ class LogicPuzzleSolver:
             # Extract verb from question if available
             question_verb = self._extract_verb_from_question(question)
 
+            # Detect assignment puzzle pattern
+            is_assignment = self._is_assignment_answer(true_vars)
+
             # Format variables as sentences
             statements = []
             for var_name in true_vars:
                 var = self.parser.get_variable(var_name)
                 if var:
-                    # Try to use question verb if available, otherwise use property
+                    # For assignment puzzles, format as "Entity ist Object"
+                    if is_assignment and "_hat_" in var_name:
+                        # Extract object from variable: "bob_hat_lehrer" -> "lehrer"
+                        parts = var_name.split("_hat_")
+                        if len(parts) == 2:
+                            entity = parts[0].capitalize()
+                            obj = parts[1].capitalize()
+                            statements.append(f"{entity} ist {obj}")
+                            continue
+
+                    # Default formatting (existing logic)
                     if question_verb and "_" in var.property:
                         # Extract object from property (e.g., "hat_brandy" -> "brandy")
                         property_parts = var.property.split("_", 1)
@@ -467,3 +527,21 @@ class LogicPuzzleSolver:
                 },
                 original_exception=e,
             )
+
+    def _is_assignment_answer(self, true_vars: List[str]) -> bool:
+        """
+        Detect if answer represents an assignment puzzle.
+
+        Heuristic: >50% of variables match pattern "entity_hat_object"
+
+        Args:
+            true_vars: List of TRUE variable names
+
+        Returns:
+            True if assignment puzzle detected
+        """
+        if not true_vars:
+            return False
+
+        assignment_pattern_count = sum(1 for v in true_vars if "_hat_" in v)
+        return assignment_pattern_count / len(true_vars) > 0.5

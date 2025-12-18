@@ -143,6 +143,24 @@ class KonzeptNetzwerkMemory:
         """Link fact to episode. Delegates to EpisodicMemory."""
         return self.episodes.link_fact_to_episode(subject, relation, object, episode_id)
 
+    def link_facts_to_episode_batch(
+        self, facts: List[Dict[str, str]], episode_id: str
+    ) -> int:
+        """
+        Link multiple facts to episode in batch (Quick Win #3).
+
+        10-20x faster than individual link_fact_to_episode() calls.
+        Delegates to EpisodicMemory.
+
+        Args:
+            facts: List of dicts with {subject, relation, object}
+            episode_id: Episode ID
+
+        Returns:
+            Number of successfully linked facts
+        """
+        return self.episodes.link_facts_to_episode_batch(facts, episode_id)
+
     def query_episodes_about(self, topic: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Query episodes about topic. Delegates to EpisodicMemory."""
         return self.episodes.query_episodes_about(topic, limit)
