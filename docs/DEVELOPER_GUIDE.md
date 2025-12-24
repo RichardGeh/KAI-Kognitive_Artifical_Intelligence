@@ -367,7 +367,7 @@ Aim for >80% coverage on new code.
 ## UI Integration
 
 Tests are integrated into the KAI UI via the Settings dialog:
-- Access via **Einstellungen → Tests** tab
+- Access via **Einstellungen -> Tests** tab
 - **150+ test classes** organized by category
 - File-level checkbox grouping for easy selection
 - Live progress tracking with status indicators
@@ -382,12 +382,12 @@ Tests are integrated into the KAI UI via the Settings dialog:
 
 | Optimierung | Status | Verbesserung | Komponente |
 |------------|--------|--------------|------------|
-| Batch-Embeddings für Ingestion | ✅ Implementiert | ~5-10x schneller | `kai_ingestion_handler.py` |
-| Neo4j Query-Profiling | ✅ Implementiert | Analyse-Tool | `component_utils_neo4j_profiler.py` |
-| Lazy Loading für Proof Trees | ✅ Implementiert | ~3x schneller für große Bäume | `component_18_proof_tree_widget.py` |
-| Batch-Processing für große Texte | ✅ Implementiert | ~2-3x schneller | `kai_ingestion_handler.py` |
-| TTL-Caching für Queries | ✅ Bereits vorhanden | ~86x schneller | `component_1_netzwerk_core.py` |
-| LRU-Cache für Embeddings | ✅ Bereits vorhanden | ~5600x schneller | `component_11_embedding_service.py` |
+| Batch-Embeddings fuer Ingestion | [OK] Implementiert | ~5-10x schneller | `kai_ingestion_handler.py` |
+| Neo4j Query-Profiling | [OK] Implementiert | Analyse-Tool | `component_utils_neo4j_profiler.py` |
+| Lazy Loading fuer Proof Trees | [OK] Implementiert | ~3x schneller fuer grosse Baeume | `component_18_proof_tree_widget.py` |
+| Batch-Processing fuer grosse Texte | [OK] Implementiert | ~2-3x schneller | `kai_ingestion_handler.py` |
+| TTL-Caching fuer Queries | [OK] Bereits vorhanden | ~86x schneller | `component_1_netzwerk_core.py` |
+| LRU-Cache fuer Embeddings | [OK] Bereits vorhanden | ~5600x schneller | `component_11_embedding_service.py` |
 
 ---
 
@@ -687,7 +687,7 @@ TTLCache(maxsize=100, ttl=600)  # Wort-Cache: 100 Einträge, 10min TTL
 
 5. **`_is_location_hierarchy(loc1, loc2)`**
    - Checks if two locations are in a PART_OF hierarchy
-   - Supports transitive relationships (e.g., Berlin → Deutschland → Europa)
+   - Supports transitive relationships (e.g., Berlin -> Deutschland -> Europa)
    - Prevents false contradictions for hierarchical locations
 
 ### Integration with Hypothesis Scoring:
@@ -717,7 +717,7 @@ The contradiction detection is integrated into the `_score_coherence()` method:
 2. **Property-Based Tests for `normalize_plural_to_singular`**:
    - `test_normalize_plural_never_crashes`: Never crashes on arbitrary input
    - `test_normalize_plural_idempotent`: Idempotent normalization
-   - `test_normalize_plural_output_not_longer_than_input`: Output ≤ input length
+   - `test_normalize_plural_output_not_longer_than_input`: Output <= input length
    - `test_normalize_plural_preserves_short_words`: Words < 3 chars unchanged
 
 3. **Edge Case Tests**:
@@ -763,9 +763,9 @@ The contradiction detection is integrated into the `_score_coherence()` method:
 ## Known Issues & Limitations
 
 ### Windows Unicode Encoding:
-- **Issue**: Print statements with special characters (✓, emoji, German umlauts) cause `UnicodeEncodeError` in cmd.exe/PowerShell
+- **Issue**: Print statements with special characters (checkmarks, emoji, German umlauts) cause `UnicodeEncodeError` in cmd.exe/PowerShell
 - **Affected**: Many tests have print statements that fail on Windows
-- **Workaround**: Replace special characters with ASCII equivalents (OK instead of ✓)
+- **Workaround**: Replace special characters with ASCII equivalents (OK instead of checkmarks)
 - **Status**: Partially fixed, some tests still have Unicode issues
 
 ### Contradiction Detection Limitations:
@@ -796,13 +796,13 @@ class Position:
 ```
 
 **Methods**:
-- `distance_to(other, metric='euclidean')` → `float`
+- `distance_to(other, metric='euclidean')` -> `float`
   - Metrics: `'euclidean'`, `'manhattan'`, `'chebyshev'`
-- `manhattan_distance_to(other)` → `float`
-- `euclidean_distance_to(other)` → `float`
-- `direction_to(other)` → `Optional[SpatialRelationType]`
+- `manhattan_distance_to(other)` -> `float`
+- `euclidean_distance_to(other)` -> `float`
+- `direction_to(other)` -> `Optional[SpatialRelationType]`
   - Returns cardinal direction (NORTH_OF, SOUTH_OF, etc.) or None
-- `get_neighbors(neighborhood_type, custom_offsets=None)` → `List[Position]`
+- `get_neighbors(neighborhood_type, custom_offsets=None)` -> `List[Position]`
   - Neighborhood types: ORTHOGONAL (4), DIAGONAL (4), MOORE (8), CUSTOM
 
 **Example**:
@@ -810,19 +810,19 @@ class Position:
 pos = Position(3, 4)
 other = Position(6, 8)
 
-pos.manhattan_distance_to(other)  # → 7
-pos.euclidean_distance_to(other)  # → 5.0
-pos.direction_to(Position(3, 5))  # → SpatialRelationType.NORTH_OF
+pos.manhattan_distance_to(other)  # -> 7
+pos.euclidean_distance_to(other)  # -> 5.0
+pos.direction_to(Position(3, 5))  # -> SpatialRelationType.NORTH_OF
 
 neighbors = pos.get_neighbors(NeighborhoodType.ORTHOGONAL)
-# → [Position(3,5), Position(3,3), Position(4,4), Position(2,4)]
+# -> [Position(3,5), Position(3,3), Position(4,4), Position(2,4)]
 ```
 
 ---
 
 #### 2. `Grid`
 
-**Generic N×M grid structure**:
+**Generic NxM grid structure**:
 ```python
 @dataclass
 class Grid:
@@ -835,12 +835,12 @@ class Grid:
 ```
 
 **Methods**:
-- `is_valid_position(pos)` → `bool`: Check if position is within bounds
-- `get_all_positions()` → `List[Position]`: All grid positions
-- `get_neighbors(pos)` → `List[Position]`: Valid neighbors of position
+- `is_valid_position(pos)` -> `bool`: Check if position is within bounds
+- `get_all_positions()` -> `List[Position]`: All grid positions
+- `get_neighbors(pos)` -> `List[Position]`: Valid neighbors of position
 - `place_object(obj_name, pos)`: Place object at position
 - `move_object(obj_name, new_pos)`: Move object to new position
-- `get_object_at_position(pos)` → `Optional[str]`: Get object at position
+- `get_object_at_position(pos)` -> `Optional[str]`: Get object at position
 - `remove_object(obj_name)`: Remove object from grid
 
 **Example**:
@@ -852,11 +852,11 @@ grid = Grid(
     neighborhood_type=NeighborhoodType.ORTHOGONAL
 )
 
-grid.is_valid_position(Position(7, 7))  # → True
-grid.is_valid_position(Position(8, 8))  # → False
+grid.is_valid_position(Position(7, 7))  # -> True
+grid.is_valid_position(Position(8, 8))  # -> False
 
 grid.place_object("king", Position(4, 0))
-grid.get_object_at_position(Position(4, 0))  # → "king"
+grid.get_object_at_position(Position(4, 0))  # -> "king"
 ```
 
 ---
@@ -878,19 +878,19 @@ grid.get_object_at_position(Position(4, 0))  # → "king"
 - `BETWEEN`, `LOCATED_AT`
 
 **Properties**:
-- `is_symmetric` → `bool`: Check if relation is symmetric
-- `is_transitive` → `bool`: Check if relation is transitive
-- `inverse` → `Optional[SpatialRelationType]`: Get inverse relation
+- `is_symmetric` -> `bool`: Check if relation is symmetric
+- `is_transitive` -> `bool`: Check if relation is transitive
+- `inverse` -> `Optional[SpatialRelationType]`: Get inverse relation
 
 **Example**:
 ```python
 rel = SpatialRelationType.NORTH_OF
 
-rel.is_transitive  # → True
-rel.inverse        # → SpatialRelationType.SOUTH_OF
+rel.is_transitive  # -> True
+rel.inverse        # -> SpatialRelationType.SOUTH_OF
 
 adj = SpatialRelationType.ADJACENT_TO
-adj.is_symmetric   # → True
+adj.is_symmetric   # -> True
 ```
 
 ---
@@ -909,7 +909,7 @@ class SpatialRelation:
 ```
 
 **Methods**:
-- `to_inverse()` → `Optional[SpatialRelation]`: Create inverse relation
+- `to_inverse()` -> `Optional[SpatialRelation]`: Create inverse relation
 
 **Example**:
 ```python
@@ -920,10 +920,10 @@ rel = SpatialRelation(
     confidence=1.0
 )
 
-print(rel)  # → "king ADJACENT_TO queen (conf=1.00)"
+print(rel)  # -> "king ADJACENT_TO queen (conf=1.00)"
 
 inv = rel.to_inverse()
-# → SpatialRelation("queen", "king", ADJACENT_TO, 1.0)
+# -> SpatialRelation("queen", "king", ADJACENT_TO, 1.0)
 ```
 
 ---
@@ -938,9 +938,9 @@ class Triangle:
 ```
 
 **Methods**:
-- `area()` → `float`: Calculate area (Heron's formula)
-- `perimeter()` → `float`: Calculate perimeter
-- `is_valid()` → `bool`: Check if triangle is valid (non-degenerate)
+- `area()` -> `float`: Calculate area (Heron's formula)
+- `perimeter()` -> `float`: Calculate perimeter
+- `is_valid()` -> `bool`: Check if triangle is valid (non-degenerate)
 
 **Quadrilateral**:
 ```python
@@ -950,11 +950,11 @@ class Quadrilateral:
 ```
 
 **Methods**:
-- `area()` → `float`: Calculate area (Shoelace formula)
-- `perimeter()` → `float`: Calculate perimeter
-- `is_rectangle()` → `bool`: Check if rectangle
-- `is_square()` → `bool`: Check if square
-- `diagonals()` → `Tuple[float, float]`: Length of diagonals
+- `area()` -> `float`: Calculate area (Shoelace formula)
+- `perimeter()` -> `float`: Calculate perimeter
+- `is_rectangle()` -> `bool`: Check if rectangle
+- `is_square()` -> `bool`: Check if square
+- `diagonals()` -> `Tuple[float, float]`: Length of diagonals
 
 **Circle**:
 ```python
@@ -965,20 +965,20 @@ class Circle:
 ```
 
 **Methods**:
-- `area()` → `float`: πr²
-- `circumference()` → `float`: 2πr
-- `contains_point(pos)` → `bool`: Check if point is inside circle
-- `distance_to_edge(pos)` → `float`: Distance from point to circle edge
+- `area()` -> `float`: PIr²
+- `circumference()` -> `float`: 2PIr
+- `contains_point(pos)` -> `bool`: Check if point is inside circle
+- `distance_to_edge(pos)` -> `float`: Distance from point to circle edge
 
 **Example**:
 ```python
 triangle = Triangle([Position(0,0), Position(4,0), Position(2,3)])
-triangle.area()       # → 6.0
-triangle.perimeter()  # → 10.0
+triangle.area()       # -> 6.0
+triangle.perimeter()  # -> 10.0
 
 circle = Circle(center=Position(5, 5), radius=3.0)
-circle.area()                      # → 28.27
-circle.contains_point(Position(6, 6))  # → True
+circle.area()                      # -> 28.27
+circle.contains_point(Position(6, 6))  # -> True
 ```
 
 ---
@@ -1014,7 +1014,7 @@ def create_grid(
 
 **Example**:
 ```python
-# Standard 8×8 chess board
+# Standard 8*8 chess board
 chess = spatial.create_grid(8, 8, "chess", NeighborhoodType.ORTHOGONAL)
 
 # Custom knight-move grid
@@ -1066,7 +1066,7 @@ def get_object_position(
 **Example**:
 ```python
 pos = spatial.get_object_position("chess", "king_white")
-# → Position(4, 0)
+# -> Position(4, 0)
 ```
 
 ---
@@ -1130,7 +1130,7 @@ path = spatial.find_path(
     algorithm="bfs",
     obstacles=[Position(3, 3), Position(4, 4)]
 )
-# → [Position(0,0), Position(1,0), Position(2,0), ...]
+# -> [Position(0,0), Position(1,0), Position(2,0), ...]
 
 # A* with custom heuristic
 def custom_heuristic(pos, goal):
@@ -1192,10 +1192,10 @@ def query_spatial_relations(
 **Example**:
 ```python
 relations = spatial.query_spatial_relations("king", "ADJACENT_TO")
-# → [SpatialRelation("king", "queen", ADJACENT_TO, 1.0)]
+# -> [SpatialRelation("king", "queen", ADJACENT_TO, 1.0)]
 
 all_relations = spatial.query_spatial_relations("king")
-# → All relations involving "king"
+# -> All relations involving "king"
 ```
 
 ---
@@ -1224,7 +1224,7 @@ inferred = spatial.infer_transitive_relations(
     SpatialRelationType.NORTH_OF,
     max_depth=3
 )
-# → [SpatialRelation("city_A", "city_C", NORTH_OF, 0.85)]
+# -> [SpatialRelation("city_A", "city_C", NORTH_OF, 0.85)]
 ```
 
 ---
@@ -1283,7 +1283,7 @@ current_config = {
 }
 
 matches = spatial.detect_spatial_patterns(current_config)
-# → ["back_rank_checkmate"]
+# -> ["back_rank_checkmate"]
 ```
 
 ---
@@ -1291,9 +1291,9 @@ matches = spatial.detect_spatial_patterns(current_config)
 ### Performance Considerations
 
 **Caching** (recommended for production):
-- Position queries: TTL Cache (5 min) → 10-20x speedup
-- Path-finding: Memoize paths → 5-10x speedup
-- Pattern matching: Cache configurations → 3-5x speedup
+- Position queries: TTL Cache (5 min) -> 10-20x speedup
+- Path-finding: Memoize paths -> 5-10x speedup
+- Pattern matching: Cache configurations -> 3-5x speedup
 
 **Batch Operations**:
 - Use `place_multiple_objects()` for bulk placement
@@ -1313,7 +1313,7 @@ path = spatial.find_path("chess", Position(0,0), Position(7,7))
 
 # Get profile stats
 stats = spatial.get_profile_stats()
-# → {"neo4j_queries": 5, "total_time_ms": 23.4, "cache_hits": 12}
+# -> {"neo4j_queries": 5, "total_time_ms": 23.4, "cache_hits": 12}
 ```
 
 ---
@@ -1419,7 +1419,7 @@ widget.animate_object_movement("king", path, duration_ms=1000)
 3. **Cache expensive operations**: Path-finding, pattern matching
 4. **Prefer immutable Position**: Use `Position` (frozen dataclass) for hashability
 5. **Profile spatial queries**: Use profiler for Neo4j bottlenecks
-6. **Test with realistic grids**: 8×8, 10×10, 16×16 for benchmarks
+6. **Test with realistic grids**: 8*8, 10*10, 16*16 for benchmarks
 7. **Document custom neighborhoods**: Clearly explain custom offset patterns
 
 ---
@@ -1443,11 +1443,11 @@ The Resonance Engine implements **spreading activation** over the knowledge grap
 
 **Algorithm:**
 ```python
-1. Initialize: start_word → activation = 1.0
+1. Initialize: start_word -> activation = 1.0
 2. For each wave (max: 5 waves):
    a. Find neighbors of all activated concepts
-   b. Propagate: activation = old_activation × decay_factor × confidence
-   c. RESONANCE: Multiple paths → additional boost
+   b. Propagate: activation = old_activation * decay_factor * confidence
+   c. RESONANCE: Multiple paths -> additional boost
    d. Prune: Keep only top-N concepts per wave
 3. Build reasoning paths for all activated concepts
 ```
@@ -1465,11 +1465,11 @@ The Resonance Engine implements **spreading activation** over the knowledge grap
 
 ```python
 # Base activation from path
-new_activation = old_activation × decay_factor × confidence
+new_activation = old_activation * decay_factor * confidence
 
 # RESONANCE: Multiple paths found
 if concept already activated:
-    resonance = resonance_boost × old_activation
+    resonance = resonance_boost * old_activation
     new_activation += resonance
     mark_as_resonance_point(concept)
 ```
@@ -1481,9 +1481,9 @@ if concept already activated:
 **Class:** `AdaptiveResonanceEngine(ResonanceEngine)`
 
 Automatically tunes hyperparameters based on:
-- **Graph Size**: Larger graphs → higher thresholds, aggressive pruning
-- **Query Time**: Slow queries → fewer waves, more pruning
-- **Accuracy**: Low accuracy → more exploration (more waves, less pruning)
+- **Graph Size**: Larger graphs -> higher thresholds, aggressive pruning
+- **Query Time**: Slow queries -> fewer waves, more pruning
+- **Accuracy**: Low accuracy -> more exploration (more waves, less pruning)
 
 **Tuning Rules:**
 ```python
@@ -1515,7 +1515,7 @@ if avg_accuracy < 0.6:
 ```python
 @dataclass
 class ActivationMap:
-    activations: Dict[str, float]              # Concept → activation level
+    activations: Dict[str, float]              # Concept -> activation level
     wave_history: List[Dict[str, float]]       # Per-wave activations
     reasoning_paths: List[ReasoningPath]       # All discovered paths
     resonance_points: List[ResonancePoint]     # Concepts with resonance boost
@@ -1621,7 +1621,7 @@ for concept, activation in top_concepts:
 
 # Resonance points
 for rp in activation_map.resonance_points:
-    print(f"⭐ {rp.concept}: {rp.num_paths} paths, boost={rp.resonance_boost:.3f}")
+    print(f"[RESONANZ] {rp.concept}: {rp.num_paths} paths, boost={rp.resonance_boost:.3f}")
 ```
 
 #### Explain Activation
@@ -1634,7 +1634,7 @@ print(explanation)
 # ═══ Aktivierung: 'tier' ═══
 # Aktivierungslevel: 0.630
 # Typ: Resonanz-verstärkt
-# ⭐ RESONANZ: 3 konvergierende Pfade, Boost=0.315
+# [RESONANZ] RESONANZ: 3 konvergierende Pfade, Boost=0.315
 #
 # Aktivierungspfade (3 gesamt):
 #   1. hund --[IS_A]--> tier
@@ -1723,7 +1723,7 @@ class StrategyPerformance:
 **Update Mechanism:**
 ```python
 # Exponential Moving Average (EMA)
-new_avg_confidence = (1 - α) × old_avg + α × new_confidence
+new_avg_confidence = (1 - α) * old_avg + α * new_confidence
 
 # Laplace Smoothing for Success Rate
 success_rate = (success_count + 1) / (queries_handled + 2)
@@ -1745,15 +1745,15 @@ else:
         context_score = match_context_requirements(context, strategy)
 
         scores[strategy] = (
-            pattern_score × 0.4 +
-            perf_score × 0.4 +
-            context_score × 0.2
+            pattern_score * 0.4 +
+            perf_score * 0.4 +
+            context_score * 0.2
         )
 
     selected = max(scores, key=scores.get)
 
 # Decay epsilon over time
-epsilon = max(min_epsilon, epsilon × epsilon_decay)
+epsilon = max(min_epsilon, epsilon * epsilon_decay)
 ```
 
 **Default Config:**
@@ -1978,11 +1978,11 @@ def _create_indexes(self):
 ```python
 # Before indexing
 MATCH (s)-[r]->(o) WHERE r.confidence > 0.8 RETURN s, o
-# → 45ms for 1000 relations
+# -> 45ms for 1000 relations
 
 # After indexing
 MATCH (s)-[r]->(o) WHERE r.confidence > 0.8 RETURN s, o
-# → 12ms for 1000 relations (3.75x speedup)
+# -> 12ms for 1000 relations (3.75x speedup)
 ```
 
 ### Verification
@@ -2124,10 +2124,10 @@ if distance < EMBEDDING_THRESHOLD:
 **Example Split:**
 ```
 component_X_engine.py (1,200 lines)
-→ component_X_engine.py (facade, 100 lines)
-→ component_X_core.py (core logic, 400 lines)
-→ component_X_strategies.py (algorithms, 400 lines)
-→ component_X_neo4j.py (persistence, 300 lines)
+-> component_X_engine.py (facade, 100 lines)
+-> component_X_core.py (core logic, 400 lines)
+-> component_X_strategies.py (algorithms, 400 lines)
+-> component_X_neo4j.py (persistence, 300 lines)
 ```
 
 ### Testing Split Components

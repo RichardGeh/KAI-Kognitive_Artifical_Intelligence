@@ -1,0 +1,26 @@
+{
+  "scenario": "test_reformulate_apple_description",
+  "timestamp": "2025-12-23T22:32:11.027514",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-23T22:32:11.028854",
+    "input_text": "\nErklaere anders: Ein Apfel ist eine Frucht, die am Baum waechst und oft rot ist.\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-23T22:32:12.033587",
+    "response": "KaiResponse(text=\"Ok, ich habe mir gemerkt: 'erklaere anders ein apfel' -> 'frucht, die am baum waechst und oft rot ist'.\", trace=[], answer_id=None, confidence=0.8, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.8
+  },
+  "metadata": {
+    "scenario_name": "test_reformulate_apple_description",
+    "start_time": "2025-12-23T22:32:11.027514",
+    "end_time": "2025-12-23T22:32:12.033591"
+  }
+}

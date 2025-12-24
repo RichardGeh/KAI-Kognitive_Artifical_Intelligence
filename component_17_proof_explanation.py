@@ -320,6 +320,40 @@ class ProofTree:
         default_factory=dict, init=False, repr=False
     )
 
+    def __post_init__(self):
+        """Validate ProofTree structure and warn about suspicious flat structures"""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Index existing root steps
+        for step in self.root_steps:
+            self._index_step(step)
+
+        # Detect suspicious flat structures
+        num_roots = len(self.root_steps)
+        if num_roots > 10:
+            total_steps = len(self.get_all_steps())
+            calculated_depth = self._calculate_depth()
+            logger.warning(
+                f"Suspicious ProofTree structure: {num_roots} root steps, "
+                f"{total_steps} total steps, depth={calculated_depth}. "
+                f"Expected hierarchical structure with 1-3 roots. "
+                f"This likely indicates a flat structure bug."
+            )
+
+    def _calculate_depth(self) -> int:
+        """Calculate maximum depth of proof tree"""
+        if not self.root_steps:
+            return 0
+
+        def step_depth(step: ProofStep, current: int = 1) -> int:
+            if not step.subgoals:
+                return current
+            return max(step_depth(sg, current + 1) for sg in step.subgoals)
+
+        return max(step_depth(root) for root in self.root_steps)
+
     def add_root_step(self, step: ProofStep) -> None:
         """Add a top-level proof step and invalidate cache"""
         self.root_steps.append(step)

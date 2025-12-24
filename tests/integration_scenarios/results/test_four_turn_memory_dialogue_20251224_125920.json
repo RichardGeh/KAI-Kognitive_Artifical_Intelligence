@@ -1,0 +1,29 @@
+{
+  "scenario": "test_four_turn_memory_dialogue",
+  "timestamp": "2025-12-24T12:59:20.264278",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T12:59:20.264980",
+    "input_text": "\nTurn 1: Anna mag Aepfel.\nTurn 2: Bob mag Birnen.\nTurn 3: Wer mag Aepfel?\nTurn 4: Was mag Bob?\n        ",
+    "context": {
+      "multi_turn": true,
+      "turn_count": 4
+    }
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T12:59:20.429387",
+    "response": "KaiResponse(text='das weiß ich über bob: zudem: has property birn.', trace=[], answer_id=None, confidence=0.8, strategy=None, evaluation=None, proof_tree=ProofTree(query='Was macht bob?', root_steps=[ProofStep(step_id='direct_bob_HAS_PROPERTY_birn', step_type=<StepType.FACT_MATCH: 'fact_match'>, inputs=['bob'], rule_name=None, output='bob HAS_PROPERTY birn', confidence=1.0, explanation_text='Direkter Fakt: bob -> birn', parent_steps=[], bindings={}, metadata={}, timestamp=datetime.datetime(2025, 12, 24, 12, 59, 20, 428994), source_component='direct_fact_lookup', subgoals=[])], metadata={}, created_at=datetime.datetime(2025, 12, 24, 12, 59, 20, 428982)))",
+    "confidence": 0.8
+  },
+  "metadata": {
+    "scenario_name": "test_four_turn_memory_dialogue",
+    "start_time": "2025-12-24T12:59:20.264278",
+    "end_time": "2025-12-24T12:59:20.429389"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "scenario": "test_elaborate_on_apple",
+  "timestamp": "2025-12-23T22:31:46.609931",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-23T22:31:46.611554",
+    "input_text": "Was ist ein Apfel? Erklaere ausfuehrlich.",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-23T22:31:50.134211",
+    "response": "KaiResponse(text='das weiß ich über apfel: es ist eine art von frucht, e frucht. zudem: has property rot, süß.', trace=[], answer_id=None, confidence=0.8, strategy=None, evaluation=None, proof_tree=ProofTree(query='Was macht apfel?', root_steps=[ProofStep(step_id='direct_apfel_IS_A_frucht', step_type=<StepType.FACT_MATCH: 'fact_match'>, inputs=['apfel'], rule_name=None, output='apfel IS_A frucht', confidence=1.0, explanation_text='Direkter Fakt: apfel -> frucht', parent_steps=[], bindings={}, metadata={}, timestamp=datetime.datetime(2025, 12, 23, 22, 31, 50, 133255), source_component='direct_fact_lookup', subgoals=[]), ProofStep(step_id='direct_apfel_IS_A_e frucht', step_type=<StepType.FACT_MATCH: 'fact_match'>, inputs=['apfel'], rule_name=None, output='apfel IS_A e frucht', confidence=1.0, explanation_text='Direkter Fakt: apfel -> e frucht', parent_steps=[], bindings={}, metadata={}, timestamp=datetime.datetime(2025, 12, 23, 22, 31, 50, 133265), source_component='direct_fact_lookup', subgoals=[]), ProofStep(step_id='direct_apfel_HAS_PROPERTY_rot', step_type=<StepType.FACT_MATCH: 'fact_match'>, inputs=['apfel'], rule_name=None, output='apfel HAS_PROPERTY rot', confidence=1.0, explanation_text='Direkter Fakt: apfel -> rot', parent_steps=[], bindings={}, metadata={}, timestamp=datetime.datetime(2025, 12, 23, 22, 31, 50, 133270), source_component='direct_fact_lookup', subgoals=[]), ProofStep(step_id='direct_apfel_HAS_PROPERTY_süß', step_type=<StepType.FACT_MATCH: 'fact_match'>, inputs=['apfel'], rule_name=None, output='apfel HAS_PROPERTY süß', confidence=1.0, explanation_text='Direkter Fakt: apfel -> süß', parent_steps=[], bindings={}, metadata={}, timestamp=datetime.datetime(2025, 12, 23, 22, 31, 50, 133272), source_component='direct_fact_lookup', subgoals=[])], metadata={}, created_at=datetime.datetime(2025, 12, 23, 22, 31, 50, 132622)))",
+    "confidence": 0.8
+  },
+  "metadata": {
+    "scenario_name": "test_elaborate_on_apple",
+    "start_time": "2025-12-23T22:31:46.609931",
+    "end_time": "2025-12-23T22:31:50.134213"
+  }
+}

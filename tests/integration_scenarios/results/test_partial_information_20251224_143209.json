@@ -1,0 +1,26 @@
+{
+  "scenario": "test_partial_information",
+  "timestamp": "2025-12-24T14:32:09.502617",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T14:32:09.503176",
+    "input_text": "\n        Ich habe gehoert, dass jemand letztes Jahr umgezogen ist.\n        Die Person war vorher in Berlin, aber jetzt wohnt sie woanders.\n\n        Kannst du mir sagen, wo die Person jetzt wohnt?\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T14:32:09.894606",
+    "response": "KaiResponse(text='durch komplexe schlussfolgerung habe ich herausgefunden: es ist eine art von .', trace=[], answer_id=None, confidence=0.8, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.8
+  },
+  "metadata": {
+    "scenario_name": "test_partial_information",
+    "start_time": "2025-12-24T14:32:09.502617",
+    "end_time": "2025-12-24T14:32:09.894610"
+  }
+}

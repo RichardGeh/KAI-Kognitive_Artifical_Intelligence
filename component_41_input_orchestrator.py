@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from component_5_linguistik_strukturen import GoalType, MainGoal, SubGoal
 from component_15_logging_config import get_logger
+from kai_exceptions import ParsingError
 
 logger = get_logger(__name__)
 
@@ -31,6 +32,7 @@ MIN_LOGIC_PATTERNS_FOR_PUZZLE = 2  # Minimum logic patterns to classify as puzzl
 
 # Confidence thresholds for segment classification
 CONFIDENCE_QUESTION_MARK = 0.95  # High confidence when question mark present
+CONFIDENCE_FRAGE_PREFIX = 0.90  # Confidence for "Frage:" prefix detection
 CONFIDENCE_QUESTION_WORD = 0.90  # Confidence for question word detection
 CONFIDENCE_COMMAND = 1.0  # Maximum confidence for explicit commands
 CONFIDENCE_DECLARATIVE = 0.85  # Confidence for declarative patterns
@@ -138,8 +140,9 @@ class InputOrchestrator:
 
         Kriterien:
         - Mehr als ein Satz
-        - Enthält sowohl Erklärungen als auch Fragen
-        - Keine expliziten Befehle
+        - Enthält eine MISCHUNG aus Segmenttypen (z.B. COMMAND + QUESTION,
+          EXPLANATION + QUESTION)
+        - Nur homogene Befehle werden NICHT orchestriert
 
         Args:
             text: Die zu prüfende Eingabe
@@ -147,39 +150,41 @@ class InputOrchestrator:
         Returns:
             True wenn Orchestrierung sinnvoll ist
         """
-        # Prüfe auf explizite Befehle (diese werden normal verarbeitet)
-        text_lower = text.lower().strip()
-        for prefix in self.command_prefixes:
-            if text_lower.startswith(prefix):
-                logger.debug(
-                    f"Expliziter Befehl erkannt: {prefix} - überspringe Orchestrierung"
-                )
-                return False
-
-        # Segmentiere zunächst
+        # Segmentiere ZUERST (vor Command-Prefix-Pruefung)
         segments = self._segment_text(text)
 
         # Orchestrierung nur bei mehreren Segmenten
         if len(segments) < MIN_SEGMENTS_FOR_ORCHESTRATION:
-            logger.debug(f"Nur {len(segments)} Segment(e) - überspringe Orchestrierung")
+            logger.debug(
+                f"Nur {len(segments)} Segment(e) - ueberspringe Orchestrierung"
+            )
             return False
 
-        # Klassifiziere Segmente
+        # Klassifiziere alle Segmente
         classified_segments = [self.classify_segment(seg) for seg in segments]
 
-        # Prüfe ob sowohl Erklärungen als auch Fragen vorhanden sind
+        # Zaehle Segmenttypen
         has_explanation = any(s.is_explanation() for s in classified_segments)
         has_question = any(s.is_question() for s in classified_segments)
+        has_command = any(s.is_command() for s in classified_segments)
 
-        if has_explanation and has_question:
+        # Orchestrierung wenn Mischung aus verschiedenen Typen
+        # (z.B. COMMAND + QUESTION, EXPLANATION + QUESTION)
+        if (has_command or has_explanation) and has_question:
             logger.info(
-                f"Orchestrierung aktiviert: {len(classified_segments)} Segmente, {sum(s.is_explanation() for s in classified_segments)} Erklärungen, {sum(s.is_question() for s in classified_segments)} Fragen"
+                f"Orchestrierung aktiviert: {len(classified_segments)} Segmente, "
+                f"commands={sum(s.is_command() for s in classified_segments)}, "
+                f"explanations={sum(s.is_explanation() for s in classified_segments)}, "
+                f"questions={sum(s.is_question() for s in classified_segments)}"
             )
             return True
 
-        logger.debug(
-            "Keine Mischung aus Erklärungen und Fragen - überspringe Orchestrierung"
-        )
+        # Nur homogene Befehle oder Erklaerungen - keine Orchestrierung noetig
+        if has_command and not has_question and not has_explanation:
+            logger.debug("Nur Befehle erkannt - ueberspringe Orchestrierung")
+            return False
+
+        logger.debug("Keine Mischung erkannt - ueberspringe Orchestrierung")
         return False
 
     def _is_simple_entity_puzzle(self, segments: List[InputSegment]) -> bool:
@@ -415,15 +420,19 @@ class InputOrchestrator:
                 for p in uniqueness_patterns
             )
 
-            total_constraint_patterns = (
-                negative_count
-                + all_different_count
-                + assignment_count
-                + uniqueness_count
+            # Real constraints (not just assignments)
+            real_constraint_count = (
+                negative_count + all_different_count + uniqueness_count
             )
 
-            # Need at least 2 constraint patterns + question for constraint puzzle
-            if total_constraint_patterns >= 2 and has_question:
+            total_constraint_patterns = real_constraint_count + assignment_count
+
+            # Need at least 1 real constraint (negative, all-different, uniqueness)
+            # Simple assignments like "Anna mag Aepfel" alone are NOT constraint puzzles
+            # They are just facts to be learned, not puzzles to be solved
+            is_real_constraint_puzzle = real_constraint_count >= 1 and has_question
+
+            if is_real_constraint_puzzle:
                 logger.info(
                     f"Constraint-Rätsel erkannt (Pattern Matching) | "
                     f"negative={negative_count}, all_different={all_different_count}, "
@@ -434,9 +443,24 @@ class InputOrchestrator:
 
             return False
 
-        except Exception as e:
-            logger.warning(f"Constraint-Detection fehlgeschlagen: {e}")
-            return False
+        except re.error as e:
+            logger.error(f"Regex compilation error in constraint detection: {e}")
+            raise ParsingError(
+                "Invalid regex pattern in constraint detector",
+                context={"text_preview": text[:100]},
+                original_exception=e,
+            )
+        except (AttributeError, TypeError) as e:
+            logger.error(
+                f"Unexpected error in constraint detection - possible API change: {e}",
+                exc_info=True,
+            )
+            raise ParsingError(
+                f"Constraint detection failed due to {type(e).__name__}",
+                context={"text_length": len(text), "num_segments": len(segments)},
+                original_exception=e,
+            )
+        # Remove generic catch-all - let real errors propagate
 
     def classify_logic_puzzle_type(
         self, text: str, segments: List[InputSegment]
@@ -457,15 +481,23 @@ class InputOrchestrator:
         Returns:
             PuzzleType enum
         """
-        # Prüfe zunächst auf numerisches Rätsel (spezifischer)
-        if self._is_numerical_puzzle(text, segments):
-            return PuzzleType.NUMERICAL_CSP
+        # CRITICAL: Check for entity-based puzzles FIRST before numerical puzzles
+        # Reason: Entity puzzles often have numbered constraints (1. 2. 3.)
+        # which would cause misclassification as numerical puzzles
 
         # Prüfe auf einfaches Entity-Rätsel
         if self._is_simple_entity_puzzle(segments):
+            logger.info("Puzzle-Typ: ENTITY_SAT (simple entity puzzle)")
             return PuzzleType.ENTITY_SAT
 
         text_lower = text.lower()
+
+        # Patterns für Entitäten-basierte Rätsel
+        entity_patterns = [
+            r"\b[A-Z][a-z]+\s+(?:trinkt|mag|isst|bestellt|traegt|hat)\b",  # "Leo trinkt", "Anna traegt"
+            r"\b(?:wer|was|welche[rs]?)\s+(?:trinkt|mag|isst|bestellt|traegt)\b",  # "Wer/Was trinkt"
+            r"\b(?:einer|eine)\s+von\s+(?:ihnen|den\s+dreien)\b",  # "einer von ihnen"
+        ]
 
         # Patterns für numerische/Constraint-basierte Rätsel
         numerical_patterns = [
@@ -481,38 +513,44 @@ class InputOrchestrator:
             r"\brichtig(?:e|en)?\s+behauptung(?:en)?\b",  # "richtige Behauptungen"
             r"\bfalsch(?:e|en)?\s+behauptung(?:en)?\b",  # "falsche Behauptungen"
             r"\b(?:erste|letzte|n-te)\s+(?:richtig|falsch)\b",  # meta-constraints
-            r"\b\d+\.\s",  # Numbered statements (1., 2., 3., ...)
-        ]
-
-        # Patterns für Entitäten-basierte Rätsel
-        entity_patterns = [
-            r"\b[A-Z][a-z]+\s+(?:trinkt|mag|isst|bestellt)\b",  # "Leo trinkt"
-            r"\b(?:wer|was|welche[rs]?)\s+(?:trinkt|mag|isst|bestellt)\b",  # "Wer/Was trinkt"
-            r"\b(?:einer|eine)\s+von\s+(?:ihnen|den\s+dreien)\b",  # "einer von ihnen"
+            # NOTE: Removed r"\b\d+\.\s" (numbered lists) - not reliable for numerical classification
         ]
 
         # Zähle Matches
+        entity_count = sum(
+            len(re.findall(p, text, re.IGNORECASE))
+            for p in entity_patterns  # Use text (not text_lower) for case-sensitive entity patterns
+        )
+
         numerical_count = sum(
             len(re.findall(p, text_lower, re.IGNORECASE)) for p in numerical_patterns
         )
-        entity_count = sum(
-            len(re.findall(p, text_lower, re.IGNORECASE)) for p in entity_patterns
-        )
 
-        # Klassifikation basierend auf Matches
-        if numerical_count >= 2 and entity_count == 0:
+        # IMPROVED: Prioritize entity classification if entity patterns found
+        # Klassifikation basierend auf Matches (entity-biased)
+        if entity_count >= 2:
+            # Entity patterns dominate
+            if numerical_count == 0:
+                logger.info(
+                    f"Puzzle-Typ: ENTITY_SAT ({entity_count} Entitäts-Patterns)"
+                )
+                return PuzzleType.ENTITY_SAT
+            else:
+                logger.info(
+                    f"Puzzle-Typ: ENTITY_SAT (dominant) ({entity_count} Entitäts-Patterns, {numerical_count} numerisch)"
+                )
+                return PuzzleType.ENTITY_SAT  # Entity patterns take precedence
+        elif numerical_count >= 2:
             logger.info(
                 f"Puzzle-Typ: NUMERICAL_CSP ({numerical_count} numerische Patterns)"
             )
             return PuzzleType.NUMERICAL_CSP
-        elif entity_count >= 2 and numerical_count == 0:
-            logger.info(f"Puzzle-Typ: ENTITY_SAT ({entity_count} Entitäts-Patterns)")
-            return PuzzleType.ENTITY_SAT
-        elif numerical_count >= 1 and entity_count >= 1:
+        elif entity_count >= 1 and numerical_count >= 1:
+            # Ambiguous - default to entity if any entity patterns
             logger.info(
-                f"Puzzle-Typ: HYBRID ({numerical_count} numerisch, {entity_count} Entitäten)"
+                f"Puzzle-Typ: ENTITY_SAT (fallback) ({entity_count} Entitäts-Patterns, {numerical_count} numerisch)"
             )
-            return PuzzleType.HYBRID
+            return PuzzleType.ENTITY_SAT
         else:
             logger.debug("Puzzle-Typ: UNKNOWN (nicht genug Patterns)")
             return PuzzleType.UNKNOWN
@@ -660,6 +698,90 @@ class InputOrchestrator:
 
         return merged
 
+    def _merge_numbered_items(self, segments: List[str]) -> List[str]:
+        """
+        Merge standalone numbered items (1., 2., 3., etc.) with following segment.
+
+        spaCy sometimes splits numbered list items as separate sentences.
+        Pattern: "1." (alone) + "Anna traegt..." -> "1. Anna traegt..."
+
+        Args:
+            segments: List of text segments
+
+        Returns:
+            Merged segments with numbered items combined
+        """
+        merged = []
+        i = 0
+        while i < len(segments):
+            segment = segments[i].strip()
+
+            # Check if segment is ONLY a number followed by period: "1.", "2.", etc.
+            is_numbered_item = bool(re.match(r"^\d+\.$", segment))
+
+            # If numbered item and there's a next segment, merge them
+            if is_numbered_item and i + 1 < len(segments):
+                merged_segment = segment + " " + segments[i + 1]
+                merged.append(merged_segment)
+                logger.debug(
+                    f"Merged numbered item: '{segment}' + '{segments[i + 1][:30]}...' "
+                    f"-> '{merged_segment[:50]}...'"
+                )
+                i += 2  # Skip next segment as it was merged
+            else:
+                merged.append(segment)
+                i += 1
+
+        return merged
+
+    def _strip_turn_labels(self, text: str) -> str:
+        """
+        Strip dialogue turn labels like 'Turn 1:', 'Schritt 2:' before segmentation.
+
+        These labels are metadata, not content, and should not be parsed as entities.
+
+        Args:
+            text: The text to clean
+
+        Returns:
+            Text with turn labels removed
+        """
+        # Pattern: "Turn 1:", "Schritt 2:", "Runde 3:", "Step 4:", etc.
+        pattern = r"^(Turn|Schritt|Runde|Step)\s*\d+\s*:\s*"
+        lines = text.split("\n")
+        cleaned_lines = []
+        for line in lines:
+            cleaned = re.sub(pattern, "", line.strip(), flags=re.IGNORECASE)
+            if cleaned:
+                cleaned_lines.append(cleaned)
+        logger.debug(
+            f"Stripped turn labels from {len(lines)} lines -> {len(cleaned_lines)} cleaned lines"
+        )
+        return "\n".join(cleaned_lines)
+
+    def _normalize_sentence_boundaries(self, text: str) -> str:
+        """
+        Normalize sentence boundaries so spaCy can properly segment them.
+
+        spaCy's sentence tokenizer does not recognize single newlines as sentence
+        boundaries. This method converts ".\n" (period + single newline) to ".\n\n"
+        (period + double newline) to ensure proper segmentation.
+
+        Args:
+            text: The text to normalize
+
+        Returns:
+            Text with normalized sentence boundaries
+        """
+        # Replace period followed by single newline with period + double newline
+        # This ensures spaCy treats them as separate sentences
+        normalized = re.sub(r"\.(\n)(?!\n)", r".\n\n", text)
+        # Also handle question marks and exclamation marks
+        normalized = re.sub(r"\?(\n)(?!\n)", r"?\n\n", normalized)
+        normalized = re.sub(r"!(\n)(?!\n)", r"!\n\n", normalized)
+        logger.debug("Normalized sentence boundaries for spaCy segmentation")
+        return normalized
+
     def _segment_text(self, text: str) -> List[str]:
         """
         Segmentiert Text in Sätze mit spaCy's Sentence Tokenizer.
@@ -674,6 +796,13 @@ class InputOrchestrator:
         Returns:
             Liste von Text-Segmenten
         """
+        # Pre-processing: Strip turn labels first (e.g., "Turn 1:", "Schritt 2:")
+        text = self._strip_turn_labels(text)
+
+        # Pre-processing: Normalize sentence boundaries for spaCy
+        # spaCy does not recognize single newlines as sentence boundaries
+        text = self._normalize_sentence_boundaries(text)
+
         # Strategie 1: spaCy Sentence Tokenizer (bevorzugt)
         if self.preprocessor and hasattr(self.preprocessor, "nlp"):
             try:
@@ -687,6 +816,9 @@ class InputOrchestrator:
 
                 # Post-processing: Merge question words with following segment
                 segments = self._merge_question_words(segments)
+
+                # Post-processing: Merge numbered items with following segment
+                segments = self._merge_numbered_items(segments)
 
                 logger.debug(f"Text mit spaCy segmentiert: {len(segments)} Segmente")
                 return segments
@@ -746,6 +878,7 @@ class InputOrchestrator:
 
         Nutzt mehrere Heuristiken:
         1. Fragezeichen → QUESTION
+        1b. "Frage:" Prefix → QUESTION (common in puzzle formulations)
         2. Fragewörter am Anfang → QUESTION
         3. Explizite Befehle → COMMAND
         4. Deklarative Muster → EXPLANATION
@@ -769,6 +902,19 @@ class InputOrchestrator:
                 segment_type=SegmentType.QUESTION,
                 confidence=CONFIDENCE_QUESTION_MARK,
                 metadata={"heuristic": "question_mark"},
+            )
+
+        # Heuristik 1b: "Frage:" prefix (German for "Question:")
+        # Common in puzzle formulations where the question doesn't end with "?"
+        if re.match(r"^frage:\s*", text_lower):
+            logger.debug(
+                f"Segment klassifiziert als QUESTION (Frage-Prefix): '{text[:50]}...'"
+            )
+            return InputSegment(
+                text=text,
+                segment_type=SegmentType.QUESTION,
+                confidence=CONFIDENCE_FRAGE_PREFIX,
+                metadata={"heuristic": "frage_prefix"},
             )
 
         # Heuristik 2: Fragewörter am Anfang → QUESTION

@@ -9,7 +9,7 @@ Date: 2025-11-14
 """
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from component_5_linguistik_strukturen import SubGoal
 from kai_sub_goal_strategy_base import SubGoalStrategy
@@ -316,16 +316,145 @@ class OrchestratedStrategy(SubGoalStrategy):
         Returns:
             Tuple (success, result)
         """
+        from kai_ingestion_handler import KaiIngestionHandler
+
         segment_text = sub_goal.metadata.get("segment_text")
         if not segment_text:
             return False, {"error": "Kein Segment-Text für Befehl gefunden"}
 
         logger.info(f"Führe orchestrierten Befehl aus: '{segment_text[:50]}...'")
 
-        # Verarbeite Befehl durch normale Pipeline
-        # (Das wird vom Worker bereits über process_query gemacht)
-        # Hier geben wir nur OK zurück
-        return True, {"command_text": segment_text, "processed": True}
+        # Erkenne Befehlstyp und führe aus
+        segment_lower = segment_text.lower().strip()
+
+        # Lerne-Befehl: "Lerne: Ein Hund bellt."
+        if segment_lower.startswith("lerne:"):
+            # Extrahiere Text nach "Lerne:"
+            learn_text = segment_text[segment_text.index(":") + 1 :].strip()
+
+            if not learn_text:
+                return False, {"error": "Kein Text zum Lernen gefunden"}
+
+            logger.info(f"Lerne: '{learn_text}'")
+
+            # Verarbeite via Ingestion Handler
+            ingestion_handler = KaiIngestionHandler(
+                self.worker.netzwerk,
+                self.worker.preprocessor,
+                self.worker.prototyping_engine,
+                self.worker.embedding_service,
+            )
+
+            stats = ingestion_handler.ingest_text(learn_text)
+            facts_learned = stats.get("facts_created", 0)
+
+            logger.info(
+                f"Befehl 'Lerne:' abgeschlossen: {facts_learned} Fakten gelernt"
+            )
+
+            # Tracke im Working Memory
+            self.worker.working_memory.add_reasoning_state(
+                step_type="command_execution",
+                description=f"Gelernt: {facts_learned} Fakten aus '{learn_text[:30]}...'",
+                data={"facts_learned": facts_learned, "command": "lerne"},
+            )
+
+            return True, {
+                "command": "lerne",
+                "text": learn_text,
+                "facts_learned": facts_learned,
+                "processed": True,
+            }
+
+        # Definiere-Befehl: "Definiere: ..."
+        elif segment_lower.startswith("definiere:"):
+            define_text = segment_text[segment_text.index(":") + 1 :].strip()
+
+            if not define_text:
+                return False, {"error": "Kein Text zum Definieren gefunden"}
+
+            logger.info(f"Definiere: '{define_text}'")
+
+            ingestion_handler = KaiIngestionHandler(
+                self.worker.netzwerk,
+                self.worker.preprocessor,
+                self.worker.prototyping_engine,
+                self.worker.embedding_service,
+            )
+
+            stats = ingestion_handler.ingest_text(define_text)
+            facts_learned = stats.get("facts_created", 0)
+
+            logger.info(
+                f"Befehl 'Definiere:' abgeschlossen: {facts_learned} Fakten gelernt"
+            )
+
+            return True, {
+                "command": "definiere",
+                "text": define_text,
+                "facts_learned": facts_learned,
+                "processed": True,
+            }
+
+        # Unbekannter Befehl - logge Warnung, aber fahre fort
+        else:
+            logger.warning(f"Unbekannter Befehlstyp: '{segment_text[:30]}...'")
+            return True, {
+                "command_text": segment_text,
+                "processed": False,
+                "warning": "Unbekannter Befehl",
+            }
+
+    def _extract_topic_from_text(self, doc, text: str) -> Optional[str]:
+        """
+        Extrahiert das Thema aus einem spaCy doc oder Text.
+
+        Sucht nach Substantiven (NOUN) oder Eigennamen (PROPN),
+        wobei Fragewörter und Artikel ignoriert werden.
+
+        Args:
+            doc: spaCy Doc Objekt
+            text: Ursprünglicher Text
+
+        Returns:
+            Extrahiertes Thema oder None
+        """
+        # Ignoriere diese Wörter
+        ignore_words = {
+            "was",
+            "wer",
+            "wie",
+            "wo",
+            "wann",
+            "warum",
+            "kann",
+            "ist",
+            "hat",
+            "ein",
+            "eine",
+            "der",
+            "die",
+            "das",
+            "einem",
+            "einer",
+            "eines",
+        }
+
+        # Suche nach Substantiven
+        for token in doc:
+            if (
+                token.pos_ in ("NOUN", "PROPN")
+                and token.lemma_.lower() not in ignore_words
+            ):
+                # Verwende das Lemma (Grundform)
+                return token.lemma_.lower()
+
+        # Fallback: Suche nach dem ersten nicht-ignorierten Wort
+        for token in doc:
+            if token.lemma_.lower() not in ignore_words and len(token.text) > 2:
+                return token.lemma_.lower()
+
+        return None
 
     def _answer_question_with_context(
         self, sub_goal: SubGoal, context: Dict[str, Any]
@@ -333,7 +462,7 @@ class OrchestratedStrategy(SubGoalStrategy):
         """
         Beantwortet eine Frage mit zuvor gelerntem Kontext.
 
-        PHASE 4: Enhanced to detect logic puzzles and store context in working memory.
+        PHASE 4: Enhanced to detect logic puzzles and route to logic puzzle solver.
 
         Args:
             sub_goal: SubGoal mit segment_text in metadata
@@ -354,7 +483,7 @@ class OrchestratedStrategy(SubGoalStrategy):
         )
 
         # PHASE 4: Check if this is a logic puzzle orchestration result
-        # If so, store puzzle context in working memory for dispatcher
+        # If so, route directly to logic puzzle solver via strategy dispatcher
         orchestration_result = context.get("orchestration_result")
 
         if orchestration_result and orchestration_result.get("is_logic_puzzle"):
@@ -366,21 +495,88 @@ class OrchestratedStrategy(SubGoalStrategy):
             )
 
             # Extract entities from segments
+            # FIX: Collect ALL words from ALL segments FIRST, then count globally
+            # Previously the Counter was created inside the loop, resetting counts per segment
+            import re
+            from collections import Counter
+
             segments = orchestration_result.get("segments", [])
-            entities = []
+
+            # PHASE 1: Collect all capitalized words from all explanation segments
+            all_words = []
             for seg in segments:
                 if seg.is_explanation():
-                    # Extract capitalized words (likely entities like "Leo", "Mark", "Nick")
-                    import re
+                    # Pattern matches single capital letters OR capitalized words
+                    words = re.findall(r"\b[A-Z][a-z]*\b", seg.text)
+                    all_words.extend(words)
 
-                    words = re.findall(r"\b[A-Z][a-z]+\b", seg.text)
-                    entities.extend(
-                        [
-                            w
-                            for w in words
-                            if w not in ["Der", "Die", "Das", "Ein", "Eine"]
-                        ]
-                    )
+            # PHASE 2: Count occurrences globally across all segments
+            global_word_counts = Counter(all_words)
+
+            # Entity exclusion list - words that should not be treated as entities
+            # Synchronized with kai_worker.py ENTITY_EXCLUSIONS
+            ENTITY_EXCLUSIONS = {
+                # German articles
+                "Der",
+                "Die",
+                "Das",
+                "Ein",
+                "Eine",
+                # Conjunctions
+                "Wenn",
+                "Falls",
+                "Aber",
+                "Und",
+                "Oder",
+                # Meta-words / Turn labels
+                "Turn",
+                "Step",
+                "Schritt",
+                "Runde",
+                "Punkt",
+                "Teil",
+                # German indefinite pronouns - FIX for test_negative_constraints
+                "Jede",
+                "Jeder",
+                "Jedes",
+                "Alle",
+                "Keine",
+                "Keiner",
+                # German command verbs (imperatives)
+                "Finde",
+                "Gib",
+                "Nenne",
+                "Bestimme",
+                "Zeige",
+                "Erklaere",
+                "Berechne",
+                # Colors and declined forms
+                "Rot",
+                "Blau",
+                "Gruen",
+                "Gelb",
+                "Schwarz",
+                "Weiss",
+                "Gelbes",
+                "Rotes",
+                "Blaues",
+                "Gruenes",
+                "Weisses",
+                "Schwarzes",
+            }
+
+            # PHASE 3: Filter entities based on global counts
+            # Include:
+            # 1. Single letters that appear at least once (puzzle entities like A, B, C)
+            # 2. Multi-letter words that appear at least 2x globally and aren't exclusions
+            entities = []
+            for word, count in global_word_counts.items():
+                if word in ENTITY_EXCLUSIONS:
+                    continue
+                if len(word) == 1:  # Single letter (A, B, C, etc.)
+                    entities.append(word)
+                elif count >= 2:  # Multi-letter word appearing 2+ times globally
+                    entities.append(word)
 
             # Remove duplicates while preserving order
             entities = list(dict.fromkeys(entities))
@@ -411,46 +607,153 @@ class OrchestratedStrategy(SubGoalStrategy):
                 f"{len(full_puzzle_text)} chars full text"
             )
 
-            # Add LOGIC_PUZZLE strategy hint for dispatcher
-            # This will be picked up by the reasoning orchestrator
-            if "strategies" not in context:
-                context["strategies"] = []
+            # Route directly to logic puzzle solver via strategy dispatcher
+            logger.info(
+                "[Logic Puzzle Orchestration] Routing to LOGIC_PUZZLE strategy dispatcher"
+            )
 
-            # Import strategy enum
-            from kai_reasoning_orchestrator import ReasoningStrategy
+            try:
+                # Get reasoning orchestrator from inference handler
+                reasoning_orchestrator = None
+                if (
+                    hasattr(self.worker, "inference_handler")
+                    and self.worker.inference_handler
+                ):
+                    reasoning_orchestrator = getattr(
+                        self.worker.inference_handler, "_reasoning_orchestrator", None
+                    )
 
-            if ReasoningStrategy.LOGIC_PUZZLE not in context["strategies"]:
-                context["strategies"].append(ReasoningStrategy.LOGIC_PUZZLE)
-                logger.info(
-                    "[Logic Puzzle Orchestration] Added LOGIC_PUZZLE strategy to context"
+                if not reasoning_orchestrator:
+                    logger.warning(
+                        "[Logic Puzzle Orchestration] No reasoning orchestrator available, falling back to direct solver"
+                    )
+                    # Fallback: Use logic puzzle solver directly
+                    from component_45_logic_puzzle_solver_core import LogicPuzzleSolver
+
+                    solver = LogicPuzzleSolver()
+                    solver_result = solver.solve(
+                        full_puzzle_text, entities, segment_text
+                    )
+
+                    if solver_result and solver_result.get("result") == "SATISFIABLE":
+                        answer_text = solver_result.get("answer", "")
+                        return True, {
+                            "final_response": answer_text,
+                            "proof_tree": solver_result.get("proof_tree"),
+                            "confidence": solver_result.get("confidence", 0.7),
+                        }
+                    else:
+                        return False, {
+                            "error": "Logic puzzle solver konnte keine Lösung finden.",
+                            "confidence": 0.0,
+                        }
+
+                from kai_reasoning_orchestrator import ReasoningStrategy
+
+                # Execute LOGIC_PUZZLE strategy via dispatcher
+                result = (
+                    reasoning_orchestrator.strategy_dispatcher.execute_single_strategy(
+                        topic="logic_puzzle",  # Not used for logic puzzles
+                        relation_type=None,
+                        strategy=ReasoningStrategy.LOGIC_PUZZLE,
+                        query_text=full_puzzle_text,
+                        context=context,
+                    )
                 )
 
-        # Verarbeite Frage durch normale Pipeline
-        # WICHTIG: Diese Frage wird mit dem ZUVOR GELERNTEN Kontext beantwortet
-        # Der Kontext wurde bereits im Batch-Learning-Schritt in den Graph geschrieben
+                if result and result.success:
+                    # Extract answer from inferred_facts
+                    answer_text = result.metadata.get("answer", "")
+                    if not answer_text and result.inferred_facts:
+                        # Fallback: get from PUZZLE_SOLUTION
+                        puzzle_solutions = result.inferred_facts.get(
+                            "PUZZLE_SOLUTION", []
+                        )
+                        answer_text = puzzle_solutions[0] if puzzle_solutions else ""
 
+                    logger.info(
+                        f"[Logic Puzzle Orchestration] Solver succeeded with confidence {result.confidence:.2f}"
+                    )
+
+                    return True, {
+                        "final_response": answer_text,
+                        "proof_tree": result.proof_tree,
+                        "confidence": result.confidence,
+                    }
+                else:
+                    logger.warning(
+                        "[Logic Puzzle Orchestration] Solver returned no result"
+                    )
+                    return False, {
+                        "error": "Logic puzzle solver konnte keine Lösung finden.",
+                        "confidence": 0.0,
+                    }
+
+            except Exception as e:
+                logger.error(
+                    f"[Logic Puzzle Orchestration] Solver error: {e}", exc_info=True
+                )
+                # Propagate exception to make bugs visible in tests
+                raise
+
+        # Standard question processing for non-puzzle questions
         # Extrahiere Intent aus Frage
         doc = self.worker.preprocessor.process(segment_text)
         meaning_points = self.worker.extractor.extract(doc)
-
-        if not meaning_points:
-            return False, {"error": "Konnte Intent aus Frage nicht extrahieren"}
-
-        intent = meaning_points[0]
 
         # Nutze QuestionStrategy für normale Verarbeitung (lazy import to avoid circular dependency)
         from kai_sub_goal_strategies_core import QuestionStrategy
 
         question_strategy = QuestionStrategy(self.worker)
 
-        # Führe Sub-Goals sequentiell aus (wie normale Frage)
-        question_context = {"intent": intent}
+        if meaning_points:
+            intent = meaning_points[0]
+            question_context = {"intent": intent}
 
-        # Identifiziere Thema
-        success, result = question_strategy._identify_topic(intent)
-        if not success:
-            return success, result
-        question_context.update(result)
+            # Identifiziere Thema
+            success, result = question_strategy._identify_topic(intent)
+            if success:
+                question_context.update(result)
+            else:
+                # Fallback: Extrahiere Thema aus Text direkt
+                topic = self._extract_topic_from_text(doc, segment_text)
+                if topic:
+                    question_context["topic"] = topic
+                    question_context["topic_source"] = "fallback_extraction"
+                    logger.info(f"Thema via Fallback extrahiert: '{topic}'")
+                else:
+                    return False, {"error": "Kein Thema gefunden."}
+        else:
+            # Kein MeaningPoint - Fallback: Extrahiere Thema direkt aus spaCy doc
+            logger.warning("Keine MeaningPoints, verwende Fallback-Extraktion")
+            topic = self._extract_topic_from_text(doc, segment_text)
+            if not topic:
+                return False, {"error": "Konnte Intent aus Frage nicht extrahieren"}
+
+            # Erstelle minimalen Kontext
+            from component_5_linguistik_strukturen import (
+                MeaningPoint,
+                MeaningPointCategory,
+                Modality,
+                Polarity,
+            )
+
+            intent = MeaningPoint(
+                id=f"fallback-{hash(segment_text) % 10000}",
+                category=MeaningPointCategory.QUESTION,
+                cue="fallback",
+                text_span=segment_text,
+                modality=Modality.INTERROGATIVE,
+                polarity=Polarity.POSITIVE,
+                confidence=0.7,
+                arguments={"topic": topic},
+            )
+            question_context = {
+                "intent": intent,
+                "topic": topic,
+                "topic_source": "fallback_extraction",
+            }
+            logger.info(f"Fallback-Intent erstellt mit Thema: '{topic}'")
 
         # Frage Wissensgraph ab (enthält jetzt gelernten Kontext!)
         success, result = question_strategy._query_knowledge_graph(question_context)

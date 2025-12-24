@@ -27,7 +27,7 @@
 
 Das Hybrid Reasoning System kombiniert mehrere Reasoning-Strategien für robustere und uncertainty-aware Antworten. Es aggregiert Evidenz aus verschiedenen Quellen und nutzt Weighted Confidence Fusion für optimale Ergebnisse.
 
-**Status**: ✅ Implementiert (Plan B + Phase 2)
+**Status**: [OK] Implementiert (Plan B + Phase 2)
 **Version**: 2.0
 **Datum**: 2025-10-25
 
@@ -81,7 +81,7 @@ Das Hybrid Reasoning System kombiniert mehrere Reasoning-Strategien für robuste
 
 **Verantwortlichkeiten**:
 - Koordiniert mehrere Reasoning-Strategien
-- Führt Staged Execution durch (Fast Path → Deterministic → Probabilistic → Abductive)
+- Führt Staged Execution durch (Fast Path -> Deterministic -> Probabilistic -> Abductive)
 - Aggregiert Ergebnisse mit Weighted Confidence Fusion
 
 **Hauptmethoden**:
@@ -196,8 +196,8 @@ def create_aggregated_proof_tree(
 ```
 Root: Hybrid Reasoning (Conf: 0.94)
 ├── Subgoal 1: Graph Traversal (Conf: 0.80)
-│   ├── hund → säugetier
-│   └── säugetier → tier
+│   ├── hund -> säugetier
+│   └── säugetier -> tier
 ├── Subgoal 2: Logic Engine (Conf: 0.70)
 │   ├── Rule: IS_A_TRANSITIVE
 │   └── Facts: [hund IS_A säugetier, ...]
@@ -254,7 +254,7 @@ def try_backward_chaining_inference(self, topic, relation_type):
     # ...
 ```
 
-**Backward-Kompatibilität**: ✅ Vollständig erhalten
+**Backward-Kompatibilität**: [OK] Vollständig erhalten
 - Alte API funktioniert weiterhin
 - Kann via Flag deaktiviert werden: `enable_hybrid_reasoning=False`
 
@@ -335,27 +335,27 @@ result = handler.try_backward_chaining_inference("hund", "IS_A")
 **Test-Datei**: `tests/test_hybrid_reasoning.py` (20 tests)
 
 **Test-Coverage**:
-- ✅ Orchestrator Initialisierung
-- ✅ Direct Fact Lookup
-- ✅ Graph Traversal Integration
-- ✅ Logic Engine Integration
-- ✅ Noisy-OR Aggregation
-- ✅ Result Merging
-- ✅ Hybrid Proof Tree Generation
-- ✅ InferenceHandler Integration
-- ✅ Edge Cases (empty results, single result, hypothesis propagation)
+- [OK] Orchestrator Initialisierung
+- [OK] Direct Fact Lookup
+- [OK] Graph Traversal Integration
+- [OK] Logic Engine Integration
+- [OK] Noisy-OR Aggregation
+- [OK] Result Merging
+- [OK] Hybrid Proof Tree Generation
+- [OK] InferenceHandler Integration
+- [OK] Edge Cases (empty results, single result, hypothesis propagation)
 
 ## Phase 2 Tests
 **Test-Datei**: `tests/test_hybrid_reasoning_phase2.py` (20 tests)
 
 **Test-Coverage**:
-- ✅ **Aggregation Methods** (weighted_avg, max, dempster_shafer)
-- ✅ **YAML Configuration Loading**
-- ✅ **Result Caching** (cache hits, cache disabled, different strategies)
-- ✅ **Parallel Execution** (concurrent execution, exception handling)
-- ✅ **Performance Optimizations** (early exit caching)
-- ✅ **Strategy Weights** (default, custom, configuration)
-- ✅ **Integration Tests** (full pipeline with custom config)
+- [OK] **Aggregation Methods** (weighted_avg, max, dempster_shafer)
+- [OK] **YAML Configuration Loading**
+- [OK] **Result Caching** (cache hits, cache disabled, different strategies)
+- [OK] **Parallel Execution** (concurrent execution, exception handling)
+- [OK] **Performance Optimizations** (early exit caching)
+- [OK] **Strategy Weights** (default, custom, configuration)
+- [OK] **Integration Tests** (full pipeline with custom config)
 
 **Run Tests**:
 
@@ -373,7 +373,7 @@ pytest tests/test_hybrid_reasoning*.py -v
 pytest tests/test_hybrid_reasoning*.py --cov=kai_reasoning_orchestrator --cov-report=term-missing
 ```
 
-**Test Results**: ✅ **40 tests passing** (20 Phase 1 + 20 Phase 2)
+**Test Results**: [OK] **40 tests passing** (20 Phase 1 + 20 Phase 2)
 
 ---
 
@@ -562,15 +562,15 @@ orchestrator:
 ## Version 2.0 (2025-10-25) - Phase 2 Features
 
 **Added**:
-- ✨ **YAML Configuration System** - Runtime config ohne Code-Änderungen
-- ✨ **Additional Aggregation Methods**:
+- [NEU] **YAML Configuration System** - Runtime config ohne Code-Änderungen
+- [NEU] **Additional Aggregation Methods**:
   - Weighted Average (mit konfigurierbaren Weights)
   - Maximum (best-case selection)
   - Dempster-Shafer Theory (conflict resolution)
-- ✨ **Result Caching (LRU)** - 10x schneller bei wiederholten Queries
-- ✨ **Parallel Strategy Execution** - Optional, ~30% Performance Gain
-- ✨ **Comprehensive Phase 2 Test Suite** (20 additional tests)
-- ✨ **config/reasoning_pipelines.yaml** - Example configuration
+- [NEU] **Result Caching (LRU)** - 10x schneller bei wiederholten Queries
+- [NEU] **Parallel Strategy Execution** - Optional, ~30% Performance Gain
+- [NEU] **Comprehensive Phase 2 Test Suite** (20 additional tests)
+- [NEU] **config/reasoning_pipelines.yaml** - Example configuration
 
 **Improved**:
 - Cache-Aware Early Exit (Direct Facts werden jetzt gecacht)
@@ -588,22 +588,22 @@ orchestrator:
 ## Version 1.0 (2025-10-25) - Initial Implementation
 
 **Added**:
-- ✅ ReasoningOrchestrator class
-- ✅ Hybrid Reasoning Pipeline (4 stages)
-- ✅ Result Aggregation (Noisy-OR baseline)
-- ✅ Unified Proof Tree Generation
-- ✅ Integration mit InferenceHandler
-- ✅ Comprehensive Test Suite (20 tests)
-- ✅ Backward-Kompatibilität
+- [OK] ReasoningOrchestrator class
+- [OK] Hybrid Reasoning Pipeline (4 stages)
+- [OK] Result Aggregation (Noisy-OR baseline)
+- [OK] Unified Proof Tree Generation
+- [OK] Integration mit InferenceHandler
+- [OK] Comprehensive Test Suite (20 tests)
+- [OK] Backward-Kompatibilität
 
 **Improved**:
-- ✅ Proof-Konsistenz über alle Engines
-- ✅ Confidence-Scoring (Weighted Fusion)
-- ✅ Erklärbarkeit (Hybrid ProofTrees)
+- [OK] Proof-Konsistenz über alle Engines
+- [OK] Confidence-Scoring (Weighted Fusion)
+- [OK] Erklärbarkeit (Hybrid ProofTrees)
 
 **Fixed**:
-- ✅ Probabilistic Engine fehlte in Fallback-Kette
-- ✅ Inkonsistente Proof-Strukturen
+- [OK] Probabilistic Engine fehlte in Fallback-Kette
+- [OK] Inkonsistente Proof-Strukturen
 
 ---
 
@@ -636,7 +636,7 @@ orchestrator:
 
 Das Constraint Reasoning System löst Constraint Satisfaction Problems (CSPs) mit generischem Backtracking-Search und Constraint-Propagation. Es ist **nicht** auf spezifische Rätsel wie Sudoku beschränkt, sondern bietet eine breite Basis für verschiedenste Constraint-basierte Probleme.
 
-**Status**: ✅ Implementiert (Phase 1)
+**Status**: [OK] Implementiert (Phase 1)
 **Version**: 1.0
 **Datum**: 2025-10-29
 
@@ -694,8 +694,8 @@ Das Constraint Reasoning System kann für verschiedenste Problemstellungen einge
 1. Initialisiere Queue mit allen Arcs (Variable-Pairs in Binary-Constraints)
 2. Für jeden Arc (Xi, Xj):
    - Entferne Werte aus Domain(Xi), die mit keinem Wert in Domain(Xj) konsistent sind
-   - Falls Domain(Xi) leer wird → Problem unlösbar
-   - Falls Domain(Xi) reduziert wurde → Füge alle Arcs (Xk, Xi) zur Queue hinzu
+   - Falls Domain(Xi) leer wird -> Problem unlösbar
+   - Falls Domain(Xi) reduziert wurde -> Füge alle Arcs (Xk, Xi) zur Queue hinzu
 3. Wiederholen bis Queue leer
 
 **Vorteile**:
@@ -812,16 +812,16 @@ Der ConstraintSolver trackt automatisch:
 - `tests/test_constraint_logic_integration.py` - Integration mit Logik-Engine (2 test classes, ~20 tests)
 
 **Test-Coverage**:
-- ✅ Variable, Constraint, ConstraintProblem Datenstrukturen
-- ✅ Backtracking Search mit allen Heuristiken
-- ✅ AC-3 Constraint Propagation
-- ✅ N-Queens Problem (4x4, 8x8)
-- ✅ Graph Coloring (3-Coloring, 4-Coloring)
-- ✅ Logic Grid Puzzles (Zebra-Puzzle Varianten)
-- ✅ ProofTree Generation und Validation
-- ✅ Performance Metrics Tracking
-- ✅ Integration mit Engine.solve_with_constraints()
-- ✅ Edge Cases (unlösbare Probleme, leere Domains, etc.)
+- [OK] Variable, Constraint, ConstraintProblem Datenstrukturen
+- [OK] Backtracking Search mit allen Heuristiken
+- [OK] AC-3 Constraint Propagation
+- [OK] N-Queens Problem (4x4, 8x8)
+- [OK] Graph Coloring (3-Coloring, 4-Coloring)
+- [OK] Logic Grid Puzzles (Zebra-Puzzle Varianten)
+- [OK] ProofTree Generation und Validation
+- [OK] Performance Metrics Tracking
+- [OK] Integration mit Engine.solve_with_constraints()
+- [OK] Edge Cases (unlösbare Probleme, leere Domains, etc.)
 
 **Run Tests**:
 ```bash
@@ -942,15 +942,15 @@ proof = engine.solve_with_constraints(goal, [constraint])
 ### Version 1.0 (2025-10-29) - Initial Implementation
 
 **Added**:
-- ✅ Generic CSP Solver (nicht rätsel-spezifisch)
-- ✅ Variable, Constraint, ConstraintProblem Datenstrukturen
-- ✅ Backtracking Search mit MRV und LCV Heuristiken
-- ✅ Arc Consistency (AC-3) Algorithmus
-- ✅ ProofTree Integration für Lösungsverfolgung
-- ✅ Integration mit Logik-Engine via `solve_with_constraints()`
-- ✅ Helper Functions für häufige Constraint-Typen
-- ✅ Comprehensive Test Suite (90+ tests)
-- ✅ Performance Metrics Tracking
+- [OK] Generic CSP Solver (nicht rätsel-spezifisch)
+- [OK] Variable, Constraint, ConstraintProblem Datenstrukturen
+- [OK] Backtracking Search mit MRV und LCV Heuristiken
+- [OK] Arc Consistency (AC-3) Algorithmus
+- [OK] ProofTree Integration für Lösungsverfolgung
+- [OK] Integration mit Logik-Engine via `solve_with_constraints()`
+- [OK] Helper Functions für häufige Constraint-Typen
+- [OK] Comprehensive Test Suite (90+ tests)
+- [OK] Performance Metrics Tracking
 
 **Anwendungsbereiche**:
 - Ressourcen-Zuordnung mit Kompatibilitäts-Constraints
@@ -981,7 +981,7 @@ proof = engine.solve_with_constraints(goal, [constraint])
 
 Das Boolean Reasoning System löst propositionale Logik-Probleme mit einem effizienten DPLL-basierten SAT-Solver. Es ermöglicht Konsistenzprüfung von Wissensbasen, automatische Widerspruchserkennung, Verifikation von Regel-Systemen und Diagnose mit Konflikt-Lokalisierung.
 
-**Status**: ✅ Implementiert (Phase 2)
+**Status**: [OK] Implementiert (Phase 2)
 **Version**: 1.0
 **Datum**: 2025-10-30
 
@@ -1068,7 +1068,7 @@ Das Boolean Reasoning System kann für verschiedenste Problemstellungen eingeset
 **Ziel**: Konvertiere beliebige propositionale Formeln zu CNF (Conjunctive Normal Form)
 
 **Schritte** (Implementierung: `CNFConverter`):
-1. **Eliminiere Implikationen**: A → B wird zu ¬A ∨ B
+1. **Eliminiere Implikationen**: A -> B wird zu ¬A ∨ B
 2. **Eliminiere Biconditionals**: A ↔ B wird zu (¬A ∨ B) ∧ (¬B ∨ A)
 3. **Pushe Negationen nach innen** (De Morgan):
    - ¬(A ∧ B) = ¬A ∨ ¬B
@@ -1112,13 +1112,13 @@ def check_consistency(self) -> Tuple[bool, Optional[List[str]]]:
     return len(conflicts) == 0, conflicts if conflicts else None
 ```
 
-**Automatische Konvertierung Fakten → CNF**:
+**Automatische Konvertierung Fakten -> CNF**:
 ```python
 # Fakt: "apfel IS_A frucht"
-# → Literal: Literal("apfel_IS_A_frucht", negated=False)
+# -> Literal: Literal("apfel_IS_A_frucht", negated=False)
 
 # Regel: IF (X IS_A tier) AND (X HAS_PROPERTY säugetier) THEN (X CAPABLE_OF atmen)
-# → CNF Clause: (¬X_IS_A_tier ∨ ¬X_HAS_PROPERTY_säugetier ∨ X_CAPABLE_OF_atmen)
+# -> CNF Clause: (¬X_IS_A_tier ∨ ¬X_HAS_PROPERTY_säugetier ∨ X_CAPABLE_OF_atmen)
 ```
 
 ### API-Übersicht
@@ -1230,17 +1230,17 @@ Der DPLLSolver trackt automatisch:
 - `tests/test_sat_reasoning.py` - High-level reasoning (Knights & Knaves, rule verification)
 
 **Test-Coverage**:
-- ✅ Literal, Clause, CNFFormula Datenstrukturen
-- ✅ DPLL Algorithm mit Unit Propagation
-- ✅ Pure Literal Elimination
-- ✅ Watched Literals Optimization
-- ✅ CNF Conversion (implications, biconditionals, De Morgan, distribution)
-- ✅ Consistency Checking (consistent rules, circular implications, contradictions)
-- ✅ Conflict Detection und Minimal Unsatisfiable Subset
-- ✅ Knights and Knaves Puzzle
-- ✅ ProofTree Generation und Validation
-- ✅ Knowledge Base Integration (facts + rules)
-- ✅ Edge Cases (empty formula, unit clauses, pure literals)
+- [OK] Literal, Clause, CNFFormula Datenstrukturen
+- [OK] DPLL Algorithm mit Unit Propagation
+- [OK] Pure Literal Elimination
+- [OK] Watched Literals Optimization
+- [OK] CNF Conversion (implications, biconditionals, De Morgan, distribution)
+- [OK] Consistency Checking (consistent rules, circular implications, contradictions)
+- [OK] Conflict Detection und Minimal Unsatisfiable Subset
+- [OK] Knights and Knaves Puzzle
+- [OK] ProofTree Generation und Validation
+- [OK] Knowledge Base Integration (facts + rules)
+- [OK] Edge Cases (empty formula, unit clauses, pure literals)
 
 **Run Tests**:
 ```bash
@@ -1256,7 +1256,7 @@ pytest tests/test_sat_reasoning.py -v
 pytest tests/test_sat*.py --cov=component_30_sat_solver --cov-report=term-missing
 ```
 
-**Test Results**: ✅ **~60 tests passing** across 3 test files
+**Test Results**: [OK] **~60 tests passing** across 3 test files
 
 ---
 
@@ -1301,7 +1301,7 @@ facts = [
     Literal("penguin_IS_A_can_fly", negated=True)  # ¬can_fly
 ]
 
-# Regeln: bird → can_fly (Vögel können fliegen)
+# Regeln: bird -> can_fly (Vögel können fliegen)
 rules = [
     ([Literal("penguin_IS_A_bird")], Literal("penguin_IS_A_can_fly"))
 ]
@@ -1326,7 +1326,7 @@ from component_30_sat_solver import (
     PropositionalFormula, CNFConverter, solve_propositional
 )
 
-# Erstelle Formel: (A → B) ∧ (B → C)
+# Erstelle Formel: (A -> B) ∧ (B -> C)
 A = PropositionalFormula.variable_formula("A")
 B = PropositionalFormula.variable_formula("B")
 C = PropositionalFormula.variable_formula("C")
@@ -1337,7 +1337,7 @@ formula = PropositionalFormula.and_formula(
 )
 
 print(f"Original: {formula}")
-# Output: ((A → B) ∧ (B → C))
+# Output: ((A -> B) ∧ (B -> C))
 
 # Konvertiere zu CNF
 cnf = CNFConverter.to_cnf(formula)
@@ -1380,17 +1380,17 @@ if not is_consistent:
 ### Version 1.0 (2025-10-30) - Initial Implementation
 
 **Added**:
-- ✅ Generic SAT Solver (nicht puzzle-spezifisch)
-- ✅ DPLL Algorithm mit Unit Propagation und Pure Literal Elimination
-- ✅ Watched Literals Optimization für effiziente Propagation
-- ✅ CNF Conversion (PropositionalFormula → CNF)
-- ✅ Consistency Checking für Wissensbasen
-- ✅ Conflict Detection und Minimal Unsatisfiable Subset Extraction
-- ✅ ProofTree Integration für nachvollziehbare Beweise
-- ✅ KnowledgeBaseChecker für High-Level Reasoning
-- ✅ SATEncoder Helper Functions (implication, iff, xor, at-most-one, exactly-one)
-- ✅ Comprehensive Test Suite (~60 tests)
-- ✅ Performance Metrics Tracking
+- [OK] Generic SAT Solver (nicht puzzle-spezifisch)
+- [OK] DPLL Algorithm mit Unit Propagation und Pure Literal Elimination
+- [OK] Watched Literals Optimization für effiziente Propagation
+- [OK] CNF Conversion (PropositionalFormula -> CNF)
+- [OK] Consistency Checking für Wissensbasen
+- [OK] Conflict Detection und Minimal Unsatisfiable Subset Extraction
+- [OK] ProofTree Integration für nachvollziehbare Beweise
+- [OK] KnowledgeBaseChecker für High-Level Reasoning
+- [OK] SATEncoder Helper Functions (implication, iff, xor, at-most-one, exactly-one)
+- [OK] Comprehensive Test Suite (~60 tests)
+- [OK] Performance Metrics Tracking
 
 **Anwendungsbereiche**:
 - Konsistenzprüfung von Wissensbasen
@@ -1414,7 +1414,7 @@ if not is_consistent:
 
 KAI verfügt über umfassende **State-Space Reasoning**-Fähigkeiten für zustandsbasiertes Schlussfolgern und Planen. Das System kombiniert STRIPS-style Planning mit Graph-Traversal und Constraint-Reasoning für robuste Multi-Step-Planung.
 
-**Status**: ✅ Implementiert (Phase 3)
+**Status**: [OK] Implementiert (Phase 3)
 **Version**: 1.0
 **Datum**: 2025-01-30
 
@@ -1613,14 +1613,14 @@ plan = planner.solve(problem)
 ## Testing
 
 **Test-Coverage**:
-- ✅ Blocks World Planning (simple + complex)
-- ✅ Grid Navigation (with/without obstacles)
-- ✅ River Crossing Puzzle (constraint-aware)
-- ✅ StateAwareTraversal Integration
-- ✅ Plan Validation
-- ✅ Diagnose (Root-Cause Analysis)
-- ✅ A* Search, BFS Planning
-- ✅ Constraint Integration (component_29)
+- [OK] Blocks World Planning (simple + complex)
+- [OK] Grid Navigation (with/without obstacles)
+- [OK] River Crossing Puzzle (constraint-aware)
+- [OK] StateAwareTraversal Integration
+- [OK] Plan Validation
+- [OK] Diagnose (Root-Cause Analysis)
+- [OK] A* Search, BFS Planning
+- [OK] Constraint Integration (component_29)
 
 **Run Tests**:
 ```bash
@@ -1636,7 +1636,7 @@ pytest tests/test_state_reasoning.py::TestRiverCrossing -v
 pytest tests/test_state_reasoning.py::TestPerformance31 -v -m slow
 ```
 
-**Test Results**: ✅ **~25+ tests passing** across multiple domains
+**Test Results**: [OK] **~25+ tests passing** across multiple domains
 
 ---
 
@@ -1684,14 +1684,14 @@ planner = StateSpacePlanner(
 ### Version 1.0 (2025-01-30) - Initial Implementation
 
 **Added**:
-- ✅ STRIPS-Style State-Space Planner (component_31)
-- ✅ A* Search mit admissible Heuristics
-- ✅ BFS für uniform-cost Probleme
-- ✅ Blocks World, Grid Navigation, River Crossing Domain Builders
-- ✅ StateAwareTraversal Integration (component_12)
-- ✅ Plan Validation, Simulation, Diagnose
-- ✅ Constraint-Aware Planning (component_29 integration)
-- ✅ Comprehensive Test Suite (~25+ tests)
+- [OK] STRIPS-Style State-Space Planner (component_31)
+- [OK] A* Search mit admissible Heuristics
+- [OK] BFS für uniform-cost Probleme
+- [OK] Blocks World, Grid Navigation, River Crossing Domain Builders
+- [OK] StateAwareTraversal Integration (component_12)
+- [OK] Plan Validation, Simulation, Diagnose
+- [OK] Constraint-Aware Planning (component_29 integration)
+- [OK] Comprehensive Test Suite (~25+ tests)
 
 **Anwendungsbereiche**:
 - Goal-basiertes Planen (STRIPS-Benchmarks)
@@ -1740,12 +1740,12 @@ planner = StateSpacePlanner(
 
 Das Spatial Reasoning System ermöglicht KAI, räumliche Beziehungen zu verstehen, zu lernen und darauf zu schließen. Es bietet generische Unterstützung für 2D-Grids, geometrische Formen, Koordinatensysteme und räumliche Relationen - **ohne Hardcodierung spezifischer Anwendungen** wie Schach oder Sudoku.
 
-**Status**: ✅ Implementiert (Phases 1-4)
+**Status**: [OK] Implementiert (Phases 1-4)
 **Version**: 1.0
 **Datum**: 2025-11-05
 
 **Key Principle**: **Domain-Agnostic Design**
-- Grids sind generisch (N×M), keine spezifischen Anwendungen hardcoded
+- Grids sind generisch (NxM), keine spezifischen Anwendungen hardcoded
 - Räumliche Relationen werden gelernt, nicht vordefiniert
 - Flexible Koordinatensysteme mit konfigurierbaren Neighborhoods
 - Anwendungen (Schach, Sudoku, etc.) werden via Regeln gelehrt
@@ -1757,9 +1757,9 @@ Das Spatial Reasoning System ermöglicht KAI, räumliche Beziehungen zu verstehe
 Das Spatial Reasoning System unterstützt vielfältige Anwendungen:
 
 ### 1. Grid-basierte Spiele und Rätsel
-- **Schach**: 8×8 Grid mit custom knight-move neighborhood
-- **Sudoku**: 9×9 Grid mit orthogonaler Nachbarschaft
-- **N×M Grid-Puzzles**: Flexible Grid-Größen für beliebige Rätsel
+- **Schach**: 8x8 Grid mit custom knight-move neighborhood
+- **Sudoku**: 9x9 Grid mit orthogonaler Nachbarschaft
+- **NxM Grid-Puzzles**: Flexible Grid-Größen für beliebige Rätsel
 
 ### 2. Geometrische Reasoning
 - **Shape Properties**: Fläche, Umfang, Diagonalen von Dreiecken, Vierecken, Kreisen
@@ -1808,7 +1808,7 @@ Das Spatial Reasoning System unterstützt vielfältige Anwendungen:
 - Orthogonale Bewegung (4-directional)
 - Ideal für grid-basierte Bewegungen
 
-**Euclidean Distance**: `√((x1-x2)² + (y1-y2)²)`
+**Euclidean Distance**: `sqrt((x1-x2)² + (y1-y2)²)`
 - Direkte Linie (diagonale Bewegung erlaubt)
 - Kontinuierliche Bewegung
 
@@ -1853,7 +1853,7 @@ spatial_engine.store_spatial_relation(
 
 # Query spatial relations
 relations = spatial_engine.query_spatial_relations("König", "ADJACENT_TO")
-# → [SpatialRelation(König ADJACENT_TO Dame, conf=1.0)]
+# -> [SpatialRelation(König ADJACENT_TO Dame, conf=1.0)]
 ```
 
 **Grid Storage**:
@@ -1872,7 +1872,7 @@ spatial_engine.place_object_on_grid("Schachbrett_1", "Dame", Position(3, 0))
 
 # Query positions
 pos = spatial_engine.get_object_position("Schachbrett_1", "König")
-# → Position(4, 0)
+# -> Position(4, 0)
 ```
 
 ### Integration mit Logic Engine
@@ -1881,7 +1881,7 @@ pos = spatial_engine.get_object_position("Schachbrett_1", "König")
 ```python
 from component_9_logik_engine import Engine, Fact
 
-# Spatial relation → Fact
+# Spatial relation -> Fact
 fact = Fact(
     pred="ADJACENT_TO",
     args={"subject": "König", "object": "Dame"},
@@ -1921,7 +1921,7 @@ path = spatial_engine.find_path(
     obstacles=[Position(3, 3), Position(4, 4)]
 )
 
-# → [Position(0,0), Position(1,0), Position(2,0), ...]
+# -> [Position(0,0), Position(1,0), Position(2,0), ...]
 ```
 
 ### UI Integration (component_43)
@@ -1999,8 +1999,8 @@ class Grid:
 triangle = Triangle(
     vertices=[Position(0, 0), Position(4, 0), Position(2, 3)]
 )
-triangle.area()       # → 6.0 (Heron's formula)
-triangle.perimeter()  # → 10.0 + √13
+triangle.area()       # -> 6.0 (Heron's formula)
+triangle.perimeter()  # -> 10.0 + sqrt13
 ```
 
 **Quadrilateral**:
@@ -2008,16 +2008,16 @@ triangle.perimeter()  # → 10.0 + √13
 quad = Quadrilateral(
     vertices=[Position(0, 0), Position(4, 0), Position(4, 3), Position(0, 3)]
 )
-quad.area()          # → 12.0 (Shoelace formula)
-quad.is_rectangle()  # → True
+quad.area()          # -> 12.0 (Shoelace formula)
+quad.is_rectangle()  # -> True
 ```
 
 **Circle**:
 ```python
 circle = Circle(center=Position(2, 2), radius=5.0)
-circle.area()            # → 78.54 (πr²)
-circle.circumference()   # → 31.42 (2πr)
-circle.contains_point(Position(3, 3))  # → True
+circle.area()            # -> 78.54 (PIr²)
+circle.circumference()   # -> 31.42 (2PIr)
+circle.contains_point(Position(3, 3))  # -> True
 ```
 
 ---
@@ -2041,17 +2041,17 @@ circle.contains_point(Position(3, 3))  # → True
 - `tests/test_spatial_reasoning.py` - General Spatial Reasoning Tests
 
 **Test-Coverage**:
-- ✅ Position & Distance Calculations (Manhattan, Euclidean, Chebyshev)
-- ✅ Grid Creation & Validation (N×M grids, custom neighborhoods)
-- ✅ Spatial Relations (all types, transitivity, inverse)
-- ✅ Path-Finding Algorithms (BFS, DFS, A* with obstacles)
-- ✅ Geometric Shapes (triangles, quadrilaterals, circles)
-- ✅ Neo4j Persistence (store/query spatial relations, grids, positions)
-- ✅ Object Movement & Tracking (place, move, query positions)
-- ✅ Pattern Learning & Recognition (store configurations, match patterns)
-- ✅ Logic Engine Integration (spatial facts, transitive rules)
-- ✅ UI Widget (grid rendering, highlighting, path visualization)
-- ✅ CSP Integration (spatial constraints in CSP problems)
+- [OK] Position & Distance Calculations (Manhattan, Euclidean, Chebyshev)
+- [OK] Grid Creation & Validation (NxM grids, custom neighborhoods)
+- [OK] Spatial Relations (all types, transitivity, inverse)
+- [OK] Path-Finding Algorithms (BFS, DFS, A* with obstacles)
+- [OK] Geometric Shapes (triangles, quadrilaterals, circles)
+- [OK] Neo4j Persistence (store/query spatial relations, grids, positions)
+- [OK] Object Movement & Tracking (place, move, query positions)
+- [OK] Pattern Learning & Recognition (store configurations, match patterns)
+- [OK] Logic Engine Integration (spatial facts, transitive rules)
+- [OK] UI Widget (grid rendering, highlighting, path visualization)
+- [OK] CSP Integration (spatial constraints in CSP problems)
 
 **Run Tests**:
 ```bash
@@ -2068,7 +2068,7 @@ pytest tests/test_spatial*.py --cov=component_42_spatial_reasoning --cov-report=
 pytest tests/test_spatial*.py -v -m slow
 ```
 
-**Test Results**: ✅ **150+ tests passing** across 13 test files
+**Test Results**: [OK] **150+ tests passing** across 13 test files
 
 ---
 
@@ -2078,12 +2078,12 @@ pytest tests/test_spatial*.py -v -m slow
 
 | Operation | Time | Notes |
 |-----------|------|-------|
-| Create Grid (8×8) | <1ms | In-memory creation |
+| Create Grid (8x8) | <1ms | In-memory creation |
 | Position Query | <1ms | O(1) lookup |
 | Distance Calculation | <0.1ms | Direct formula |
 | Neighbor Generation | <0.5ms | 4-8 neighbors |
 
-### Path-Finding (8×8 Grid)
+### Path-Finding (8x8 Grid)
 
 | Algorithm | Empty Grid | With Obstacles | Notes |
 |-----------|------------|----------------|-------|
@@ -2109,9 +2109,9 @@ pytest tests/test_spatial*.py -v -m slow
 | Detect Patterns | 50-200ms | Check all stored patterns |
 
 **Caching** (Phase 8):
-- Position queries: TTL Cache (5 min) → 10-20x speedup
-- Grid traversal: Memoized paths → 5-10x speedup
-- Pattern matching: Cached configurations → 3-5x speedup
+- Position queries: TTL Cache (5 min) -> 10-20x speedup
+- Grid traversal: Memoized paths -> 5-10x speedup
+- Pattern matching: Cached configurations -> 3-5x speedup
 
 ---
 
@@ -2192,7 +2192,7 @@ matches = spatial_engine.detect_spatial_patterns(
         "Turm": Position(3, 0)
     }
 )
-# → ["Schachmatt_Position"]
+# -> ["Schachmatt_Position"]
 ```
 
 ---
@@ -2202,18 +2202,18 @@ matches = spatial_engine.detect_spatial_patterns(
 ### Version 1.0 (2025-11-05) - Initial Implementation
 
 **Added**:
-- ✅ Generic 2D Grid System (N×M, configurable neighborhoods)
-- ✅ Position & Distance Calculations (Manhattan, Euclidean, Chebyshev)
-- ✅ Spatial Relations (14 types, transitivity, inverse)
-- ✅ Path-Finding Algorithms (BFS, DFS, A*)
-- ✅ Geometric Shapes (Triangle, Quadrilateral, Circle)
-- ✅ Neo4j Integration (persist spatial relations, grids, positions)
-- ✅ Object Movement & Tracking (place, move, query)
-- ✅ Pattern Learning & Recognition (store configurations, match patterns)
-- ✅ Logic Engine Integration (spatial facts as predicates)
-- ✅ UI Widget (component_43, interactive grid visualization)
-- ✅ CSP Integration (spatial constraints)
-- ✅ Comprehensive Test Suite (150+ tests across 13 files)
+- [OK] Generic 2D Grid System (NxM, configurable neighborhoods)
+- [OK] Position & Distance Calculations (Manhattan, Euclidean, Chebyshev)
+- [OK] Spatial Relations (14 types, transitivity, inverse)
+- [OK] Path-Finding Algorithms (BFS, DFS, A*)
+- [OK] Geometric Shapes (Triangle, Quadrilateral, Circle)
+- [OK] Neo4j Integration (persist spatial relations, grids, positions)
+- [OK] Object Movement & Tracking (place, move, query)
+- [OK] Pattern Learning & Recognition (store configurations, match patterns)
+- [OK] Logic Engine Integration (spatial facts as predicates)
+- [OK] UI Widget (component_43, interactive grid visualization)
+- [OK] CSP Integration (spatial constraints)
+- [OK] Comprehensive Test Suite (150+ tests across 13 files)
 
 **Domain-Agnostic Design**:
 - No hardcoded applications (chess, Sudoku, etc.)
@@ -2269,7 +2269,7 @@ matches = spatial_engine.detect_spatial_patterns(
 
 KAI prüft automatisch die Konsistenz der Wissensbasis und erkennt Widersprüche in Echtzeit. Das System kombiniert SAT-basierte formale Verifikation (Phase 2) mit heuristischen Kategorie-Checks (Phase 4) für robuste Widerspruchserkennung.
 
-**Status**: ✅ Implementiert (Phases 2 & 4)
+**Status**: [OK] Implementiert (Phases 2 & 4)
 **Version**: 1.0
 **Datum**: 2025-10-31
 
@@ -2305,7 +2305,7 @@ hypothesis_fact = Fact(
 
 # SAT-basierte Konsistenzprüfung
 contradicts = abductive._contradicts_knowledge(hypothesis_fact)
-# → True (SAT-Solver detektiert UNSAT mit bestehenden Fakten)
+# -> True (SAT-Solver detektiert UNSAT mit bestehenden Fakten)
 ```
 
 ### 2. Validierung von Reasoning-Ketten
@@ -2318,7 +2318,7 @@ contradicts = abductive._contradicts_knowledge(hypothesis_fact)
 1. Extrahiere alle Fakten aus ProofStep-Hierarchie
 2. Konvertiere zu CNF-Formeln
 3. Prüfe mit SAT-Solver
-4. Wenn UNSAT → Generiere Erklärungen
+4. Wenn UNSAT -> Generiere Erklärungen
 
 **Beispiel**:
 ```python
@@ -2334,7 +2334,7 @@ if inconsistencies:
     for issue in inconsistencies:
         print(f"  - {issue}")
 else:
-    print("Inferenzkette ist konsistent ✓")
+    print("Inferenzkette ist konsistent [OK]")
 ```
 
 ### 3. Natürlichsprachliche Erklärungen von Inkonsistenzen
@@ -2363,15 +2363,15 @@ facts = [
 ]
 
 contradictions = engine.find_contradictions(facts)
-# → [(Fact(hund IS_A tier), Fact(hund IS_A pflanze))]
+# -> [(Fact(hund IS_A tier), Fact(hund IS_A pflanze))]
 
 # Natürlichsprachliche Erklärung
 for fact1, fact2 in contradictions:
     print(
-        f"Widerspruch: {fact1.pred}({fact1.args['subject']} → {fact1.args['object']}) "
-        f"widerspricht {fact2.pred}({fact2.args['subject']} → {fact2.args['object']})"
+        f"Widerspruch: {fact1.pred}({fact1.args['subject']} -> {fact1.args['object']}) "
+        f"widerspricht {fact2.pred}({fact2.args['subject']} -> {fact2.args['object']})"
     )
-# Output: "Widerspruch: IS_A(hund → tier) widerspricht IS_A(hund → pflanze)"
+# Output: "Widerspruch: IS_A(hund -> tier) widerspricht IS_A(hund -> pflanze)"
 ```
 
 ---
@@ -2394,9 +2394,9 @@ def _score_coherence(self, hypothesis, context_facts):
 
         if contradicts:
             # Reduziere Kohärenz-Score (Penalisierung)
-            coherent_count += 0  # Widerspruch → Score = 0
+            coherent_count += 0  # Widerspruch -> Score = 0
         else:
-            coherent_count += 0.5  # Konsistent → Score = 0.5
+            coherent_count += 0.5  # Konsistent -> Score = 0.5
 ```
 
 **Effekt**:
@@ -2438,14 +2438,14 @@ def _contradicts_knowledge(self, fact: Fact) -> bool:
     **PHASE 4.2**: Nutzt SAT-Solver für robuste Konsistenzprüfung.
 
     1. SAT-basierte Prüfung (falls Logic Engine verfügbar)
-       → Konvertiere KB + fact → CNF
-       → Nutze SATSolver.solve()
-       → Wenn UNSAT → Widerspruch
+       -> Konvertiere KB + fact -> CNF
+       -> Nutze SATSolver.solve()
+       -> Wenn UNSAT -> Widerspruch
 
     2. Heuristische Fallback-Prüfung
-       → IS_A Konflikte (Mutually Exclusive Types)
-       → HAS_PROPERTY Konflikte (Contradictory Properties)
-       → LOCATED_IN Konflikte (Incompatible Locations)
+       -> IS_A Konflikte (Mutually Exclusive Types)
+       -> HAS_PROPERTY Konflikte (Contradictory Properties)
+       -> LOCATED_IN Konflikte (Incompatible Locations)
     """
 ```
 
@@ -2482,13 +2482,13 @@ contradictory = Fact(
 contradicts = abductive._contradicts_knowledge(contradictory)
 print(f"Widerspruch erkannt: {contradicts}")
 # Output: "Widerspruch erkannt: True"
-# Erklärung (Log): "SAT-Solver: Widerspruch gefunden für IS_A(hund → pflanze)"
+# Erklärung (Log): "SAT-Solver: Widerspruch gefunden für IS_A(hund -> pflanze)"
 ```
 
 ### Beispiel 2: Indirekter Widerspruch via Regelkette
 
 ```python
-# Regel: "vogel" → "kann_fliegen"
+# Regel: "vogel" -> "kann_fliegen"
 rule = Rule(
     name="vogel_kann_fliegen",
     when=[Fact(pred="IS_A", args={"subject": "?x", "object": "vogel"})],
@@ -2519,7 +2519,7 @@ print(f"Gefundene Widersprüche: {len(contradictions)}")
 ### Beispiel 3: Validierung einer Reasoning-Kette
 
 ```python
-# Regel: "tier" → "lebewesen"
+# Regel: "tier" -> "lebewesen"
 rule = Rule(
     name="tier_ist_lebewesen",
     when=[Fact(pred="IS_A", args={"subject": "?x", "object": "tier"})],
@@ -2540,7 +2540,7 @@ if proof:
     inconsistencies = engine.validate_inference_chain(proof)
 
     if not inconsistencies:
-        print("Inferenzkette ist konsistent ✓")
+        print("Inferenzkette ist konsistent [OK]")
     else:
         print(f"Inkonsistenzen gefunden: {inconsistencies}")
 ```
@@ -2576,12 +2576,12 @@ if proof:
 - `tests/test_logik_engine_phase4.py` - validate_inference_chain Tests
 
 **Test-Coverage** (test_consistency_detection.py):
-- ✅ Einfache Widersprüche (IS_A, HAS_PROPERTY, LOCATED_IN)
-- ✅ Keine Widersprüche bei konsistenten Hierarchien
-- ✅ Indirekte Widersprüche via Regelketten (geplant: volle Unterstützung)
-- ✅ Natürlichsprachliche Erklärungen
-- ✅ Validierung von Inferenzketten
-- ✅ SAT-Integration (Logic Engine ↔ Abductive Engine)
+- [OK] Einfache Widersprüche (IS_A, HAS_PROPERTY, LOCATED_IN)
+- [OK] Keine Widersprüche bei konsistenten Hierarchien
+- [OK] Indirekte Widersprüche via Regelketten (geplant: volle Unterstützung)
+- [OK] Natürlichsprachliche Erklärungen
+- [OK] Validierung von Inferenzketten
+- [OK] SAT-Integration (Logic Engine ↔ Abductive Engine)
 
 **Run Tests**:
 ```bash
@@ -2595,7 +2595,7 @@ pytest tests/test_consistency_detection.py --cov=component_14_abductive_engine -
 pytest tests/test_abductive*.py tests/test_consistency*.py -v
 ```
 
-**Test Results**: ✅ **15+ tests passing** (Phase 4.3)
+**Test Results**: [OK] **15+ tests passing** (Phase 4.3)
 
 ---
 
@@ -2632,17 +2632,17 @@ abductive = AbductiveEngine(netzwerk, logic_engine=engine)
 ### Phase 4 (2025-10-31) - Consistency & Contradiction Enhancements
 
 **Added**:
-- ✅ **SAT-basierte Konsistenzprüfung** in Abductive Engine (`_contradicts_knowledge()`)
-- ✅ **Validierung von Reasoning-Ketten** (`Engine.validate_inference_chain()`)
-- ✅ **Automatische Widerspruchserkennung** beim Hypothesen-Scoring
-- ✅ **Natürlichsprachliche Erklärungen** für Inkonsistenzen
-- ✅ **Comprehensive Test Suite** (tests/test_consistency_detection.py)
-- ✅ **Hybrid-Ansatz**: SAT + Heuristic Fallback für Robustheit
+- [OK] **SAT-basierte Konsistenzprüfung** in Abductive Engine (`_contradicts_knowledge()`)
+- [OK] **Validierung von Reasoning-Ketten** (`Engine.validate_inference_chain()`)
+- [OK] **Automatische Widerspruchserkennung** beim Hypothesen-Scoring
+- [OK] **Natürlichsprachliche Erklärungen** für Inkonsistenzen
+- [OK] **Comprehensive Test Suite** (tests/test_consistency_detection.py)
+- [OK] **Hybrid-Ansatz**: SAT + Heuristic Fallback für Robustheit
 
 **Integration**:
-- ✅ Abductive Engine nutzt SAT für Kohärenz-Scoring
-- ✅ Logic Engine validiert Inferenzketten automatisch
-- ✅ Consistency Checks laufen automatisch beim Lernen
+- [OK] Abductive Engine nutzt SAT für Kohärenz-Scoring
+- [OK] Logic Engine validiert Inferenzketten automatisch
+- [OK] Consistency Checks laufen automatisch beim Lernen
 
 **Performance**:
 - SAT-basiert: 1-20ms (abhängig von KB-Größe)
@@ -2651,10 +2651,10 @@ abductive = AbductiveEngine(netzwerk, logic_engine=engine)
 ### Phase 2 (2025-10-30) - SAT-Solver Foundation
 
 **Added**:
-- ✅ DPLL-basierter SAT-Solver (component_30)
-- ✅ CNF Conversion, Unit Propagation, Pure Literal Elimination
-- ✅ `Engine.check_consistency()` für Faktenmenge
-- ✅ `Engine.find_contradictions()` für Konflikt-Lokalisierung
+- [OK] DPLL-basierter SAT-Solver (component_30)
+- [OK] CNF Conversion, Unit Propagation, Pure Literal Elimination
+- [OK] `Engine.check_consistency()` für Faktenmenge
+- [OK] `Engine.find_contradictions()` für Konflikt-Lokalisierung
 
 ---
 

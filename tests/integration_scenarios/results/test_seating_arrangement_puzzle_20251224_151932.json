@@ -1,0 +1,26 @@
+{
+  "scenario": "test_seating_arrangement_puzzle",
+  "timestamp": "2025-12-24T15:19:32.178820",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T15:19:32.179499",
+    "input_text": "\nVier Personen sitzen an einem runden Tisch: Anna, Ben, Clara und David.\n\nHinweise:\n1. Anna sitzt direkt gegenueber von Ben.\n2. Clara sitzt rechts von Anna.\n3. David sitzt nicht neben Anna.\n4. Ben sitzt links von David.\n\nFrage: Beschreibe die Sitzordnung im Uhrzeigersinn, beginnend mit Anna.\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T15:19:32.280479",
+    "response": "KaiResponse(text='Die Sitzordnung im Uhrzeigersinn: David, Beschreibe, Anna, Clara, Ben', trace=['Logic Puzzle Solver'], answer_id=None, confidence=1.0, strategy='logic_puzzle', evaluation=None, proof_tree=ProofTree(query='Frage: Beschreibe die Sitzordnung im Uhrzeigersinn, beginnend mit Anna.', root_steps=[ProofStep(step_id='circular_detection', step_type=<StepType.PREMISE: 'premise'>, inputs=[], rule_name=None, output='Circular seating puzzle detected', confidence=0.95, explanation_text='Round table puzzle with 5 persons', parent_steps=[], bindings={}, metadata={'entities': ['David', 'Clara', 'Anna', 'Beschreibe', 'Ben']}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 279817), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_1', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 1: anna sitzt direkt gegenueber von ben', confidence=0.9, explanation_text='Spatial constraint: opposite', parent_steps=[], bindings={}, metadata={'type': 'opposite', 'person1': 'anna', 'person2': 'ben', 'text': 'anna sitzt direkt gegenueber von ben'}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 280361), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_2', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 2: clara sitzt rechts von anna', confidence=0.9, explanation_text='Spatial constraint: right_of', parent_steps=[], bindings={}, metadata={'type': 'right_of', 'person1': 'clara', 'person2': 'anna', 'text': 'clara sitzt rechts von anna'}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 280363), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_3', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 3: ben sitzt links von david', confidence=0.9, explanation_text='Spatial constraint: left_of', parent_steps=[], bindings={}, metadata={'type': 'left_of', 'person1': 'ben', 'person2': 'david', 'text': 'ben sitzt links von david'}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 280365), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_4', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 4: david sitzt nicht neben anna', confidence=0.9, explanation_text='Spatial constraint: not_adjacent', parent_steps=[], bindings={}, metadata={'type': 'not_adjacent', 'person1': 'david', 'person2': 'anna', 'text': 'david sitzt nicht neben anna'}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 280366), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='solution_found', step_type=<StepType.CONCLUSION: 'conclusion'>, inputs=[], rule_name=None, output=\"Sitzordnung gefunden: {'david': 0, 'clara': 3, 'anna': 2, 'beschreibe': 1, 'ben': 4}\", confidence=0.95, explanation_text='Constraint satisfaction solved', parent_steps=[], bindings={}, metadata={'solution': {'david': 0, 'clara': 3, 'anna': 2, 'beschreibe': 1, 'ben': 4}}, timestamp=datetime.datetime(2025, 12, 24, 15, 19, 32, 280404), source_component='component_45_logic_puzzle_solver_core', subgoals=[])], metadata={'confidence': 0.9, 'num_steps': 6}, created_at=datetime.datetime(2025, 12, 24, 15, 19, 32, 280408)))",
+    "confidence": 1.0
+  },
+  "metadata": {
+    "scenario_name": "test_seating_arrangement_puzzle",
+    "start_time": "2025-12-24T15:19:32.178820",
+    "end_time": "2025-12-24T15:19:32.280481"
+  }
+}

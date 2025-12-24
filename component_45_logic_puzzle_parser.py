@@ -98,11 +98,15 @@ class LogicCondition:
     - XOR: "X oder Y, aber nicht beide" -> (X XOR Y)
     - NEGATION: "nicht X" -> (NOT X)
     - NEVER_BOTH: "nie X und Y" -> NOT (X AND Y)
+    - ORDERING: "A steht links von B" -> A < B (with metadata for relation type)
     """
 
     condition_type: str
     operands: List[str]  # List of variable names
     text: str  # Original text for proof tree
+    metadata: dict = (
+        None  # Optional metadata for special condition types (e.g., ORDERING)
+    )
 
 
 class LogicConditionParser:
@@ -135,10 +139,27 @@ class LogicConditionParser:
             nlp = _get_nlp_model()
             doc = nlp(text)
         except SpaCyModelError:
-            raise
-        except Exception as e:
+            raise  # Known error, propagate
+        except (AttributeError, TypeError) as e:
             raise ParsingError(
-                "Error during spaCy text processing",
+                f"spaCy API error - possibly incompatible version: {e}",
+                context={"text_length": len(text)},
+                original_exception=e,
+            )
+        except MemoryError as e:
+            raise ParsingError(
+                f"Insufficient memory to process {len(text)} character text",
+                context={"text_length": len(text)},
+                original_exception=e,
+            )
+        except Exception as e:
+            # Last resort - log ALL details for debugging
+            logger.error(
+                f"UNEXPECTED ERROR in spaCy processing: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
+            raise ParsingError(
+                f"Unexpected spaCy error ({type(e).__name__}): {e}",
                 context={"text_length": len(text)},
                 original_exception=e,
             )
@@ -165,9 +186,74 @@ class LogicConditionParser:
             "auto",
             "beruf",
             "berufe",
+            "farbe",  # Generic noun, not an actual object
+            "farben",
+            "lieblingsfarbe",
+            "lieblingsfarben",
+            "hinweis",
+            "hinweise",
+            "frage",
+            "fragen",
+            "aussage",
+            "aussagen",
+            "wer",  # Interrogative pronoun, not an object
+            "was",
+            "welche",
+            "welcher",
+            "blaue",  # Adjective forms misidentified as nouns
+            "rote",
+            "gruene",
+            "gelbe",
+            # German color adjective declined forms (neuter/accusative) - FIX for test_negative_constraints
+            "gelbes",
+            "rotes",
+            "blaues",
+            "gruenes",
+            "weisses",
+            "schwarzes",
+            # German command verbs (infinitive/imperative) - FIX for test_negative_constraints
+            "finde",
+            "finden",
+            "gib",
+            "geben",
+            "nenne",
+            "nennen",
+            "bestimme",
+            "bestimmen",
+            "zeige",
+            "zeigen",
+            "erklaere",
+            "erklaeren",
+            "berechne",
+            "berechnen",
+            # German indefinite pronouns - never objects
+            "jede",
+            "jeder",
+            "jedes",
+            "jedem",
+            "jeden",
+            "alle",
+            "aller",
+            "allen",
+            "alles",
+            "keine",
+            "keiner",
+            "keines",
+            "keinem",
+            "keinen",
+            "manche",
+            "mancher",
+            "manches",
+            "manchem",
+            "manchen",
+            "einige",
+            "einiger",
+            "einiges",
+            "einigem",
+            "einigen",
         }
 
-        # ===== NEW: PATTERN 1 - Colon-separated enumerations =====
+        # ===== PATTERN 1 - Colon-separated enumerations =====
         # Pattern: "category_noun: Object1, Object2 und Object3"
         # Example: "Berufe: Lehrer, Arzt und Ingenieur"
         colon_pattern = r"(\w+):\s*([A-Z]\w+(?:,\s*[A-Z]\w+)*(?:\s+und\s+[A-Z]\w+)?)"
@@ -190,6 +276,93 @@ class LogicConditionParser:
                         logger.debug(
                             f"Colon enumeration detected: '{category}' -> '{obj_lemma}'"
                         )
+
+        # ===== PATTERN 2 - Parenthesis-separated enumerations =====
+        # Pattern: "category_noun (Object1, Object2, Object3)"
+        # Example: "Lieblingsfarben (Rot, Blau, Gruen, Gelb)"
+        # Also matches: "verschiedene X (A, B, C)"
+        paren_pattern = r"(\w+)\s*\(([A-Z]\w+(?:,\s*[A-Z]\w+)*)\)"
+        for match in re.finditer(paren_pattern, text):
+            category = match.group(1).lower()
+            object_list = match.group(2)
+
+            # Skip if category is a generic word like "Personen" (those are entities)
+            if category in {"personen", "person", "leute", "menschen"}:
+                logger.debug(
+                    f"Parenthesis enumeration skipped (entity category): '{category}'"
+                )
+                continue
+
+            # Extract individual objects from enumeration
+            # Split by comma (no "und" in parenthesis lists typically)
+            objects = re.split(r",\s*", object_list)
+            for obj in objects:
+                obj_clean = obj.strip()
+                if obj_clean:
+                    obj_lemma = obj_clean.lower()
+                    # Don't filter by entities here - these are clearly objects!
+                    if obj_lemma not in verb_nouns and obj_lemma not in generic:
+                        potential_objects[obj_lemma] = (
+                            potential_objects.get(obj_lemma, 0) + 3
+                        )  # High confidence
+                        logger.debug(
+                            f"Parenthesis enumeration detected: '{category}' -> '{obj_lemma}'"
+                        )
+        # =========================================================
+
+        # ===== PATTERN 3 - Objects from negation sentences =====
+        # Fallback: Extract objects from "X mag/hat/traegt nicht Y" patterns
+        # This handles puzzles without explicit object enumeration
+        # Example: "Anna mag nicht Rot" -> "rot" is an object
+        negation_patterns = [
+            # "X mag/traegt/hat nicht Y" - simple negation
+            r"\b\w+\s+(?:mag|traegt|hat)\s+nicht\s+([A-Z][a-z]+)",
+            # "X mag keine Y Farbe/Sache" - adjective + generic noun
+            r"\b\w+\s+(?:mag|traegt|hat)\s+keine?n?\s+([a-z]+)e?\s+(?:farbe|sache)",
+            # "X weder Y noch Z" - neither...nor
+            r"\bweder\s+([A-Z][a-z]+)\s+noch\s+([A-Z][a-z]+)",
+        ]
+        for pattern in negation_patterns:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                for group_idx in range(1, len(match.groups()) + 1):
+                    obj = match.group(group_idx)
+                    if obj:
+                        obj_lemma = obj.strip().lower()
+                        # Filter out entities and generic terms
+                        if (
+                            obj_lemma not in verb_nouns
+                            and obj_lemma not in generic
+                            and obj_lemma not in self.entities
+                        ):
+                            potential_objects[obj_lemma] = (
+                                potential_objects.get(obj_lemma, 0) + 2
+                            )  # Medium-high confidence
+                            logger.debug(
+                                f"Negation pattern detected object: '{obj_lemma}'"
+                            )
+
+        # ===== PATTERN 4 - Objects from positive fact sentences =====
+        # Fallback: Extract objects from "X mag/hat/traegt Y" patterns
+        # Example: "Ben mag Blau" -> "blau" is an object
+        positive_patterns = [
+            # "X mag/traegt/hat Y" - simple positive fact
+            r"\b\w+\s+(?:mag|traegt|hat|ist)\s+([A-Z][a-z]+)\b",
+        ]
+        for pattern in positive_patterns:
+            for match in re.finditer(pattern, text):
+                obj = match.group(1)
+                if obj:
+                    obj_lemma = obj.strip().lower()
+                    # Filter out entities and generic terms
+                    if (
+                        obj_lemma not in verb_nouns
+                        and obj_lemma not in generic
+                        and obj_lemma not in self.entities
+                    ):
+                        potential_objects[obj_lemma] = (
+                            potential_objects.get(obj_lemma, 0) + 1
+                        )  # Lower confidence than explicit enumeration
+                        logger.debug(f"Positive pattern detected object: '{obj_lemma}'")
         # =========================================================
 
         for i, token in enumerate(doc):
@@ -200,21 +373,31 @@ class LogicConditionParser:
                     continue
 
                 is_object = False
-                # After article
-                if i > 0 and doc[i - 1].text.lower() in articles:
+
+                # FIX: Use spaCy dependency parsing to identify objects vs subjects
+                # Direct/prepositional objects have specific dependency tags
+                if token.dep_ in {"dobj", "pobj", "obj", "iobj"}:
+                    # Direct object, prepositional object, indirect object
                     is_object = True
-                # After adjective + article
+                    logger.debug(
+                        f"Object detected via dep_: '{token.text}' (dep={token.dep_})"
+                    )
+                # Fallback heuristics for cases where dep_ is not reliable
+                elif i > 0 and doc[i - 1].text.lower() in articles:
+                    # After article
+                    is_object = True
                 elif (
                     i > 1
                     and doc[i - 1].pos_ == "ADJ"
                     and doc[i - 2].text.lower() in articles
                 ):
+                    # After adjective + article
                     is_object = True
-                # After/before verb
                 elif i > 0 and doc[i - 1].pos_ == "VERB":
+                    # After verb (but NOT before verb - that's usually subject!)
                     is_object = True
-                elif i < len(doc) - 1 and doc[i + 1].pos_ == "VERB":
-                    is_object = True
+                # REMOVED: "NOUN before VERB" heuristic (line 216-217)
+                # This was capturing subjects like "Daniel traegt"
 
                 if is_object:
                     potential_objects[lemma] = potential_objects.get(lemma, 0) + 1
@@ -248,9 +431,20 @@ class LogicConditionParser:
                 self._extract_objects_from_text(text)
             except (ParsingError, SpaCyModelError):
                 raise  # Re-raise known errors
-            except Exception as e:
+            except (AttributeError, TypeError) as e:
                 raise ParsingError(
-                    "Error extracting objects from text",
+                    f"Object extraction error - API issue: {e}",
+                    context={"text_length": len(text)},
+                    original_exception=e,
+                )
+            except Exception as e:
+                # Last resort - log ALL details for debugging
+                logger.error(
+                    f"UNEXPECTED ERROR in object extraction: {type(e).__name__}: {e}",
+                    exc_info=True,
+                )
+                raise ParsingError(
+                    f"Unexpected error extracting objects ({type(e).__name__}): {e}",
                     context={"text_length": len(text)},
                     original_exception=e,
                 )
@@ -307,9 +501,17 @@ class LogicConditionParser:
 
                 # NEW: Filter entity/object enumeration sentences (introductions)
                 # Pattern: "X, Y und Z haben unterschiedliche A: B, C und D"
+                # Pattern: "X, Y und Z tragen jeweils eine Farbe: Rot, Blau, Gruen"
+                # Pattern: "X Personen (A, B, C) haben ... (D, E, F)"
                 # These don't contain actual constraints, just list entities and objects
                 if re.search(
-                    r"haben\s+unterschiedliche\s+\w+:\s*[A-Z]", sentence, re.IGNORECASE
+                    r"haben\s+unterschiedliche\s+\w+[:\s]*[A-Z(]|"
+                    r"haben\s+verschiedene\s+\w+\s*\([A-Z]|"
+                    r"tragen\s+jeweils\s+(eine|einen)\s+\w+[:\s]*[A-Z(]|"
+                    r"besitzen\s+jeweils|"
+                    r"Personen\s*\([A-Z].*\)\s+haben",
+                    sentence,
+                    re.IGNORECASE,
                 ):
                     logger.debug(
                         f"Entity/object enumeration sentence ignored: '{sentence}'"
@@ -318,19 +520,44 @@ class LogicConditionParser:
 
                 logger.debug(f"Parse condition: '{sentence}'")
 
+                # SPECIAL: Check for "weder...noch" pattern first (returns list of 2 conditions)
+                weder_noch_conditions = self._parse_weder_noch(sentence)
+                if weder_noch_conditions:
+                    conditions.extend(weder_noch_conditions)
+                    logger.info(f"[OK] WEDER...NOCH parsed: 2 NEGATION conditions")
+                    continue
+
+                # Standard parsing (returns single condition or list for relative constraints)
                 condition = (
                     self._parse_implication(sentence)
+                    or self._parse_exactly_one(
+                        sentence
+                    )  # NEW: Check for cardinality constraints
                     or self._parse_xor(sentence)
                     or self._parse_never_both(sentence)
                     or self._parse_conjunction(sentence)
                     or self._parse_disjunction(sentence)
-                    or self._parse_negation(sentence)
+                    or self._parse_ordering_constraint(
+                        sentence
+                    )  # NEW: Ordering constraints
+                    or self._parse_negation(
+                        sentence
+                    )  # Can return list for relative constraints
                     or self._parse_simple_fact(sentence)
                 )
 
                 if condition:
-                    conditions.append(condition)
-                    logger.info(f"[OK] Condition parsed: {condition.condition_type}")
+                    # SPECIAL CASE: Relative constraints return LIST of conditions
+                    if isinstance(condition, list):
+                        conditions.extend(condition)
+                        logger.info(
+                            f"[OK] Relative constraint parsed: {len(condition)} NEVER_BOTH conditions"
+                        )
+                    else:
+                        conditions.append(condition)
+                        logger.info(
+                            f"[OK] Condition parsed: {condition.condition_type}"
+                        )
                 else:
                     logger.debug(f"No logical condition recognized in: '{sentence}'")
 
@@ -552,6 +779,127 @@ class LogicConditionParser:
                 original_exception=e,
             )
 
+    def _parse_exactly_one(self, sentence: str) -> Optional[LogicCondition]:
+        """
+        Parses exactly-one cardinality constraints.
+
+        Patterns:
+        - "Genau eine Person hat X" -> DISJUNCTION (at least one)
+        - "Nur eine Person hat X" -> DISJUNCTION (at least one)
+
+        Note: Uniqueness constraints (at most one) are already enforced by
+        _generate_uniqueness_constraints(), so we only need to ensure
+        "at least one" with a DISJUNCTION.
+
+        Returns:
+            LogicCondition with DISJUNCTION type, or None if pattern doesn't match
+        """
+        try:
+            match = re.match(
+                r"(?:genau|nur)\s+eine\s+(\w+)\s+(.+)", sentence, re.IGNORECASE
+            )
+
+            if not match:
+                return None
+
+            category = match.group(1).lower()  # e.g., "person"
+            property_text = match.group(2).strip()  # e.g., "traegt Rot"
+
+            # Extract object from property_text
+            # For "traegt Rot", we need to find "rot" in detected objects
+            found_object = None
+            for obj in self._detected_objects:
+                if obj in property_text.lower():
+                    found_object = obj
+                    break
+
+            if not found_object or not self.entities:
+                return None
+
+            # Create DISJUNCTION: (Entity1_hat_object OR Entity2_hat_object OR ...)
+            # This ensures "at least one entity has the object"
+            # Uniqueness constraints already ensure "at most one"
+            variables = [f"{entity}_hat_{found_object}" for entity in self.entities]
+
+            # Register variables
+            for var in variables:
+                if var not in self.variables:
+                    entity_name = var.split("_", 1)[0]
+                    property_name = f"hat_{found_object}"
+                    self.variables[var] = LogicVariable(
+                        entity=entity_name, property=property_name
+                    )
+
+            logger.info(
+                f"[OK] EXACTLY-ONE detected: {found_object} -> DISJUNCTION over {len(variables)} entities"
+            )
+
+            return LogicCondition(
+                condition_type="DISJUNCTION", operands=variables, text=sentence
+            )
+        except Exception as e:
+            raise ParsingError(
+                "Error parsing exactly-one cardinality",
+                context={"sentence": sentence},
+                original_exception=e,
+            )
+
+    def _parse_weder_noch(self, sentence: str) -> Optional[List[LogicCondition]]:
+        """
+        Parses "weder...noch" (neither...nor) pattern.
+
+        Returns TWO NEGATION conditions: NOT(X) AND NOT(Y)
+
+        Pattern: "X weder Y noch Z" -> [NOT(X_Y), NOT(X_Z)]
+        Example: "Clara traegt weder Gruen noch Gelb"
+                 -> [NOT(Clara_hat_gruen), NOT(Clara_hat_gelb)]
+
+        Returns:
+            List with two NEGATION conditions, or None if pattern doesn't match
+        """
+        try:
+            match = re.match(
+                r"(.+?)\s+weder\s+(.+?)\s+noch\s+(.+)", sentence, re.IGNORECASE
+            )
+
+            if not match:
+                return None
+
+            entity_text = match.group(1).strip()
+            object1_text = match.group(2).strip()
+            object2_text = match.group(3).strip()
+
+            # Extract variables for both negations
+            var1 = self._extract_variables(f"{entity_text} {object1_text}")
+            var2 = self._extract_variables(f"{entity_text} {object2_text}")
+
+            if not (var1 and var2):
+                return None
+
+            logger.info(
+                f"[OK] WEDER...NOCH detected: NOT({var1[0]}) AND NOT({var2[0]})"
+            )
+
+            # Return TWO separate NEGATION conditions
+            return [
+                LogicCondition(
+                    condition_type="NEGATION",
+                    operands=[var1[0]],
+                    text=f"{entity_text} nicht {object1_text}",
+                ),
+                LogicCondition(
+                    condition_type="NEGATION",
+                    operands=[var2[0]],
+                    text=f"{entity_text} nicht {object2_text}",
+                ),
+            ]
+        except Exception as e:
+            raise ParsingError(
+                "Error parsing weder...noch pattern",
+                context={"sentence": sentence},
+                original_exception=e,
+            )
+
     def _parse_negation(self, sentence: str) -> Optional[LogicCondition]:
         """
         Parses negation with multiple German patterns.
@@ -561,45 +909,10 @@ class LogicConditionParser:
         - "X ist nicht Y" (copula negation)
         - "X ist kein/keine/keinen Y" (copula + negated article)
         - "X hat kein/keine Y" (possession negation)
-        - "X weder Y noch Z" (neither...nor)
+
+        Note: "X weder Y noch Z" is handled by _parse_weder_noch()
         """
         try:
-            # Pattern 0: "weder...noch" (neither...nor) -> CONJUNCTION of two negations
-            # Example: "Clara traegt weder Gruen noch Gelb" -> NOT(Clara_gruen) AND NOT(Clara_gelb)
-            match = re.match(
-                r"(.+?)\s+weder\s+(.+?)\s+noch\s+(.+)", sentence, re.IGNORECASE
-            )
-            if match:
-                entity_text = match.group(1).strip()
-                object1_text = match.group(2).strip()
-                object2_text = match.group(3).strip()
-
-                # Extract variables for both negations
-                var1 = self._extract_variables(f"{entity_text} {object1_text}")
-                var2 = self._extract_variables(f"{entity_text} {object2_text}")
-
-                if var1 and var2:
-                    logger.info(
-                        f"[OK] WEDER...NOCH detected: NOT({var1[0]}) AND NOT({var2[0]})"
-                    )
-                    # Return CONJUNCTION of two NEGATION conditions
-                    return LogicCondition(
-                        condition_type="CONJUNCTION",
-                        operands=[
-                            LogicCondition(
-                                condition_type="NEGATION",
-                                operands=[var1[0]],
-                                text=f"{entity_text} nicht {object1_text}",
-                            ),
-                            LogicCondition(
-                                condition_type="NEGATION",
-                                operands=[var2[0]],
-                                text=f"{entity_text} nicht {object2_text}",
-                            ),
-                        ],
-                        text=sentence,
-                    )
-
             # Pattern 1: Simple negation starting with "nicht"
             match = re.match(r"nicht\s+(.+)", sentence, re.IGNORECASE)
             if match:
@@ -651,10 +964,275 @@ class LogicConditionParser:
                         condition_type="NEGATION", operands=[vars[0]], text=sentence
                     )
 
+            # Pattern 5: "X mag/verb keine/keinen ADJ Farbe/Objekt" (verb + negated article + adjective)
+            # Example: "Ben mag keine gruene Farbe" -> NOT(ben_hat_gruen)
+            # Example: "David mag keine rote Farbe" -> NOT(david_hat_rot)
+            match = re.match(
+                r"(.+?)\s+(?:mag|traegt|hat|besitzt)\s+kein(?:e[nrs]?)?\s+(\w+)e?\s+(?:farbe|sache|ding|objekt)",
+                sentence,
+                re.IGNORECASE,
+            )
+            if match:
+                entity_text = match.group(1).strip()
+                adjective = match.group(2).strip().lower()
+                # Convert adjective to object name: "gruen" from "gruene", "rot" from "rote"
+                # Check if adjective matches any detected object
+                object_name = None
+                for obj in self._detected_objects:
+                    if obj.startswith(adjective) or adjective.startswith(obj):
+                        object_name = obj
+                        break
+                if object_name:
+                    combined = f"{entity_text} hat {object_name}"
+                    vars = self._extract_variables(combined)
+                    if vars:
+                        logger.debug(
+                            f"Pattern 5 (adj+noun negation): {entity_text} NOT hat {object_name}"
+                        )
+                        return LogicCondition(
+                            condition_type="NEGATION", operands=[vars[0]], text=sentence
+                        )
+
+            # Pattern 6: "X VERB nie etwas Y" (verb + nie + etwas + adjective)
+            # Example: "Clara traegt nie etwas Gelbes" -> NOT(clara_hat_gelb)
+            match = re.match(
+                r"(.+?)\s+(?:traegt|mag|hat)\s+nie\s+(?:etwas\s+)?(\w+)(?:es|s)?",
+                sentence,
+                re.IGNORECASE,
+            )
+            if match:
+                entity_text = match.group(1).strip()
+                adjective = match.group(2).strip().lower()
+                # Convert adjective to object name
+                object_name = None
+                for obj in self._detected_objects:
+                    if obj.startswith(adjective) or adjective.startswith(obj):
+                        object_name = obj
+                        break
+                if object_name:
+                    combined = f"{entity_text} hat {object_name}"
+                    vars = self._extract_variables(combined)
+                    if vars:
+                        logger.debug(
+                            f"Pattern 6 (nie+etwas negation): {entity_text} NOT hat {object_name}"
+                        )
+                        return LogicCondition(
+                            condition_type="NEGATION", operands=[vars[0]], text=sentence
+                        )
+
+            # Pattern 7: "Die Person, die X VERB, ist nicht Y" (passive negation)
+            # Example: "Die Person, die Blau mag, ist nicht Anna" -> NOT(anna_hat_blau)
+            match = re.match(
+                r"die\s+person,?\s+die\s+(\w+)\s+(?:mag|traegt|hat),?\s+ist\s+nicht\s+(\w+)",
+                sentence,
+                re.IGNORECASE,
+            )
+            if match:
+                object_name = match.group(1).strip().lower()
+                entity_name = match.group(2).strip().lower()
+                # Check if object is in detected objects and entity is in entities
+                if (
+                    object_name in self._detected_objects
+                    and entity_name in self.entities
+                ):
+                    combined = f"{entity_name} hat {object_name}"
+                    vars = self._extract_variables(combined)
+                    if vars:
+                        logger.debug(
+                            f"Pattern 7 (passive negation): {entity_name} NOT hat {object_name}"
+                        )
+                        return LogicCondition(
+                            condition_type="NEGATION", operands=[vars[0]], text=sentence
+                        )
+
+            # Pattern 8: "X VERB nicht die gleiche [property] wie Y" (relative constraint)
+            # Example: "Daniel traegt nicht die gleiche Farbe wie Anna"
+            # This means: for ALL objects in _detected_objects, NOT(X_has_obj AND Y_has_obj)
+            # Returns LIST of NEVER_BOTH conditions (one per detected object)
+            # IMPORTANT: Must be checked BEFORE generic Pattern 9, as it's more specific
+            match = re.match(
+                r"(.+?)\s+(\w+)\s+nicht\s+die\s+gleiche\s+(\w+)\s+wie\s+(.+)",
+                sentence,
+                re.IGNORECASE,
+            )
+            if match:
+                entity1_text = match.group(1).strip()
+                # verb = match.group(2)  # traegt (not used)
+                # property_type = match.group(3)  # Farbe (not used currently)
+                entity2_text = match.group(4).strip()
+
+                # Extract entities from text
+                entity1 = None
+                entity2 = None
+                for ent in self.entities:
+                    if ent.lower() in entity1_text.lower():
+                        entity1 = ent
+                    if ent.lower() in entity2_text.lower():
+                        entity2 = ent
+
+                # If both entities found and we have detected objects, expand to multiple NEVER_BOTH
+                if entity1 and entity2 and self._detected_objects:
+                    conditions = []
+                    for obj in self._detected_objects:
+                        var1 = f"{entity1.lower()}_hat_{obj}"
+                        var2 = f"{entity2.lower()}_hat_{obj}"
+
+                        # Register variables in self.variables
+                        self.variables[var1] = LogicVariable(entity1, f"hat_{obj}")
+                        self.variables[var2] = LogicVariable(entity2, f"hat_{obj}")
+
+                        # Create NEVER_BOTH: NOT(entity1_has_obj AND entity2_has_obj)
+                        conditions.append(
+                            LogicCondition(
+                                condition_type="NEVER_BOTH",
+                                operands=[var1, var2],
+                                text=f"{entity1} und {entity2} nicht beide {obj}",
+                            )
+                        )
+
+                    logger.info(
+                        f"[OK] Relative constraint detected: {entity1} != {entity2} "
+                        f"for {len(conditions)} objects"
+                    )
+                    # SPECIAL: Return list of conditions (caller must handle)
+                    return conditions
+
+            # Pattern 9: "X VERB nicht Y" (general verb negation)
+            # Matches: "Anna traegt nicht Rot", "Leo mag nicht Pizza"
+            # IMPORTANT: Must be checked LAST as it's the most generic pattern
+            match = re.match(r"(.+?)\s+(\w+)\s+nicht\s+(.+)", sentence, re.IGNORECASE)
+            if match:
+                entity_text = match.group(1).strip()
+                # Verb is captured but not used - always normalize to "hat"
+                object_text = match.group(3).strip()
+                # Normalize: Always use "hat" for consistency with uniqueness constraints
+                # This ensures negations and uniqueness constraints use same variable name
+                combined = f"{entity_text} hat {object_text}"
+                vars = self._extract_variables(combined)
+                if vars:
+                    return LogicCondition(
+                        condition_type="NEGATION", operands=[vars[0]], text=sentence
+                    )
+
             return None
         except Exception as e:
             raise ParsingError(
                 "Error parsing negation",
+                context={"sentence": sentence},
+                original_exception=e,
+            )
+
+    def _parse_ordering_constraint(self, sentence: str) -> Optional[LogicCondition]:
+        """
+        Parse ordering/spatial constraints.
+
+        Patterns:
+        - "A steht links von B" -> A < B (left_of)
+        - "A steht rechts von B" -> A > B (right_of)
+        - "A steht direkt neben B" -> adjacent(A, B)
+        - "A steht nicht direkt neben B" -> not_adjacent(A, B)
+        - "A steht nicht am Ende" -> not_at_end(A)
+
+        Returns:
+            LogicCondition with type "ORDERING" or None
+
+        Raises:
+            ParsingError: If pattern matches but entities are invalid
+        """
+        try:
+            # Pattern: "X steht links von Y"
+            match = re.match(
+                r"(.+?)\s+steht\s+links\s+von\s+(.+)", sentence, re.IGNORECASE
+            )
+            if match:
+                entity1 = match.group(1).strip().lower()
+                entity2 = match.group(2).strip().rstrip(".").lower()
+                if entity1 in self.entities and entity2 in self.entities:
+                    logger.debug(
+                        f"Ordering constraint: {entity1.upper()} left_of {entity2.upper()}"
+                    )
+                    return LogicCondition(
+                        condition_type="ORDERING",
+                        operands=[entity1.upper(), entity2.upper()],
+                        text=sentence,
+                        metadata={"relation": "left_of"},
+                    )
+
+            # Pattern: "X steht rechts von Y"
+            match = re.match(
+                r"(.+?)\s+steht\s+rechts\s+von\s+(.+)", sentence, re.IGNORECASE
+            )
+            if match:
+                entity1 = match.group(1).strip().lower()
+                entity2 = match.group(2).strip().rstrip(".").lower()
+                if entity1 in self.entities and entity2 in self.entities:
+                    logger.debug(
+                        f"Ordering constraint: {entity1.upper()} right_of {entity2.upper()}"
+                    )
+                    return LogicCondition(
+                        condition_type="ORDERING",
+                        operands=[entity1.upper(), entity2.upper()],
+                        text=sentence,
+                        metadata={"relation": "right_of"},
+                    )
+
+            # Pattern: "X steht nicht am Ende"
+            match = re.match(
+                r"(.+?)\s+steht\s+nicht\s+am\s+ende", sentence, re.IGNORECASE
+            )
+            if match:
+                entity = match.group(1).strip().lower()
+                if entity in self.entities:
+                    logger.debug(f"Ordering constraint: {entity.upper()} not_at_end")
+                    return LogicCondition(
+                        condition_type="ORDERING",
+                        operands=[entity.upper()],
+                        text=sentence,
+                        metadata={"relation": "not_at_end"},
+                    )
+
+            # Pattern: "X steht nicht direkt neben Y"
+            match = re.match(
+                r"(.+?)\s+steht\s+nicht\s+direkt\s+neben\s+(.+)",
+                sentence,
+                re.IGNORECASE,
+            )
+            if match:
+                entity1 = match.group(1).strip().lower()
+                entity2 = match.group(2).strip().rstrip(".").lower()
+                if entity1 in self.entities and entity2 in self.entities:
+                    logger.debug(
+                        f"Ordering constraint: {entity1.upper()} not_adjacent {entity2.upper()}"
+                    )
+                    return LogicCondition(
+                        condition_type="ORDERING",
+                        operands=[entity1.upper(), entity2.upper()],
+                        text=sentence,
+                        metadata={"relation": "not_adjacent"},
+                    )
+
+            # Pattern: "X steht direkt neben Y" (positive adjacency)
+            match = re.match(
+                r"(.+?)\s+steht\s+direkt\s+neben\s+(.+)", sentence, re.IGNORECASE
+            )
+            if match:
+                entity1 = match.group(1).strip().lower()
+                entity2 = match.group(2).strip().rstrip(".").lower()
+                if entity1 in self.entities and entity2 in self.entities:
+                    logger.debug(
+                        f"Ordering constraint: {entity1.upper()} adjacent {entity2.upper()}"
+                    )
+                    return LogicCondition(
+                        condition_type="ORDERING",
+                        operands=[entity1.upper(), entity2.upper()],
+                        text=sentence,
+                        metadata={"relation": "adjacent"},
+                    )
+
+            return None
+        except Exception as e:
+            raise ParsingError(
+                "Error parsing ordering constraint",
                 context={"sentence": sentence},
                 original_exception=e,
             )
@@ -791,6 +1369,10 @@ class LogicConditionParser:
             "waren",
             "wird",
             "werden",
+            "traegt",  # NEW: Wearing/carrying verbs for color puzzles
+            "tragen",
+            "tragt",
+            "tragst",
         }
 
         found_verb = any(verb in text for verb in verb_forms)
@@ -847,26 +1429,32 @@ class LogicConditionParser:
         """
         Detect if this is an assignment puzzle (bijection problem).
 
-        Heuristics:
-        - Multiple entities (>=2)
-        - Multiple detected objects (>=2)
-        - Text contains "unterschiedliche" or enumeration pattern
+        Heuristics (in order of priority):
+        1. Text contains strong assignment indicators (unterschiedliche, verschiedene, etc.)
+        2. Text contains colon/parenthesis enumeration pattern
+        3. Multiple entities (>=2) AND multiple detected objects (>=2)
+        4. Multiple negation constraints suggest assignment puzzle
 
         Returns:
             True if assignment puzzle detected
         """
-        # Need at least 2 entities and 2 objects
-        if len(entities) < 2 or len(self._detected_objects) < 2:
+        # Need at least 2 entities
+        if len(entities) < 2:
             return False
 
-        # Check for assignment indicators
         text_lower = text.lower()
+
+        # PRIORITY 1: Check for assignment indicators (strong signals, no object check needed)
         assignment_indicators = [
             "unterschiedliche",  # "different jobs"
             "verschiedene",  # "various"
             "jeweils",  # "each"
             "hat welchen",  # "who has which"
             "wer hat",  # "who has"
+            "wer mag",  # "who likes"
+            "wer traegt",  # "who wears"
+            "welche farbe",  # "which color"
+            "welchen beruf",  # "which job"
         ]
 
         for indicator in assignment_indicators:
@@ -874,10 +1462,60 @@ class LogicConditionParser:
                 logger.debug(f"Assignment indicator found: '{indicator}'")
                 return True
 
-        # Check for colon enumeration (strong signal)
-        # "Berufe: Lehrer, Arzt und Ingenieur"
-        if re.search(r"\w+:\s*[A-Z]\w+(?:,\s*[A-Z]\w+)+", text):
-            logger.debug("Colon enumeration found - assignment puzzle")
+        # PRIORITY 2: Check for colon enumeration (strong signal)
+        # "Berufe: Lehrer, Arzt und Ingenieur" or "Jobs: X, Y und Z"
+        # Pattern matches: "Category: Item1, Item2" OR "Category: Item1, Item2 und Item3"
+        if re.search(r"\w+:\s*[A-Z]\w*(?:,\s*[A-Z]\w*)*(?:\s+und\s+[A-Z]\w*)?", text):
+            # Need at least 2 items after colon to be considered enumeration
+            colon_match = re.search(r"\w+:\s*(.+)", text)
+            if colon_match:
+                items_text = colon_match.group(1)
+                items = re.split(r",\s*|\s+und\s+", items_text)
+                if len(items) >= 2:
+                    logger.debug("Colon enumeration found - assignment puzzle")
+                    return True
+
+        # PRIORITY 2: Check for parenthesis enumeration (strong signal)
+        # "Farben (Rot, Blau, Gruen, Gelb)"
+        if re.search(r"\w+\s*\([A-Z]\w+(?:,\s*[A-Z]\w+)+\)", text):
+            logger.debug("Parenthesis enumeration found - assignment puzzle")
+            return True
+
+        # PRIORITY 3+4: Need detected objects for these checks
+        if len(self._detected_objects) < 2:
+            return False
+
+        # PRIORITY 3+4: Check for multiple negation/positive constraints with same structure
+        # If we have N entities and N objects from constraint sentences,
+        # this is likely an assignment puzzle even without explicit enumeration
+        # Pattern: Count distinct entity-object negations/positives
+        negation_pattern = r"(\w+)\s+(?:mag|traegt|hat)\s+(?:nicht|keine?n?)\s+(\w+)"
+        positive_pattern = r"(\w+)\s+(?:mag|traegt|hat|ist)\s+([A-Z]\w+)"
+
+        entity_set = set(e.lower() for e in entities)
+        constraint_entities = set()
+        constraint_objects = set()
+
+        for pattern in [negation_pattern, positive_pattern]:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                entity_part = match.group(1).lower()
+                object_part = match.group(2).lower()
+                if entity_part in entity_set:
+                    constraint_entities.add(entity_part)
+                if object_part in self._detected_objects:
+                    constraint_objects.add(object_part)
+
+        # If most entities and objects appear in constraints, it's an assignment puzzle
+        if (
+            len(constraint_entities) >= 2
+            and len(constraint_objects) >= 2
+            and len(constraint_entities) >= len(entities) * 0.5
+            and len(constraint_objects) >= len(self._detected_objects) * 0.5
+        ):
+            logger.debug(
+                f"Inferred assignment puzzle from constraints: "
+                f"{len(constraint_entities)} entities, {len(constraint_objects)} objects"
+            )
             return True
 
         return False
@@ -931,15 +1569,52 @@ class LogicConditionParser:
         actual_entities = [e for e in entities_lower if e not in self._detected_objects]
 
         if not actual_entities:
-            logger.warning(
-                f"No actual entities found after filtering objects. "
-                f"Entities: {entities_lower}, Objects: {objects}"
+            error_msg = (
+                f"Entity/object detection failed: All {len(entities_lower)} entities "
+                f"were classified as objects. Entities: {entities_lower}, "
+                f"Objects: {self._detected_objects}. This indicates a parsing bug."
             )
-            return []
+            logger.error(error_msg)
+            raise ParsingError(
+                "Entity detection failure in assignment puzzle",
+                context={
+                    "entities_provided": entities_lower,
+                    "objects_detected": list(self._detected_objects),
+                    "filter_caused_empty_list": True,
+                },
+            )
 
-        if len(actual_entities) != len(objects):
+        # Check entity/object count mismatch
+        # Note: Asymmetric puzzles (e.g., 2 entities, 3 objects) are valid
+        # Only flag >50% mismatch as a likely parsing error
+        entity_count_mismatch_pct = (
+            abs(len(actual_entities) - len(objects))
+            / max(len(actual_entities), len(objects))
+            * 100
+        )
+
+        if entity_count_mismatch_pct > 50:
+            # Significant mismatch (>50%) indicates parsing error
+            error_msg = (
+                f"Significant entity/object mismatch ({entity_count_mismatch_pct:.0f}%): "
+                f"{len(actual_entities)} entities vs {len(objects)} objects. "
+                f"Entities: {actual_entities}, Objects: {objects}. "
+                "This likely indicates incorrect entity/object classification."
+            )
+            logger.error(error_msg)
+            raise ParsingError(
+                "Entity/object count mismatch in assignment puzzle",
+                context={
+                    "actual_entities": actual_entities,
+                    "objects_detected": list(self._detected_objects),
+                    "mismatch_percentage": entity_count_mismatch_pct,
+                    "entities_provided_before_filter": entities_lower,
+                },
+            )
+        elif len(actual_entities) != len(objects):
+            # Small mismatch - log warning but continue
             logger.warning(
-                f"Actual entity count ({len(actual_entities)}) != object count ({len(objects)}) - "
+                f"Entity count ({len(actual_entities)}) != object count ({len(objects)}) - "
                 "uniqueness constraints may be incomplete. "
                 f"Actual entities: {actual_entities}, Objects: {objects}"
             )

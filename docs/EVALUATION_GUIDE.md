@@ -207,16 +207,16 @@ Recommended schedule:
 ### Confidence Difference
 
 **Interpretation:**
-- **+0.05 oder mehr**: Signifikante Verbesserung → Production System klar besser
-- **+0.02 bis +0.05**: Moderate Verbesserung → Production System besser
-- **-0.02 bis +0.02**: Neutral → Kein klarer Winner
-- **-0.05 oder weniger**: Signifikante Verschlechterung → Pipeline besser
+- **+0.05 oder mehr**: Signifikante Verbesserung -> Production System klar besser
+- **+0.02 bis +0.05**: Moderate Verbesserung -> Production System besser
+- **-0.02 bis +0.02**: Neutral -> Kein klarer Winner
+- **-0.05 oder weniger**: Signifikante Verschlechterung -> Pipeline besser
 
 **Beispiel:**
 ```
 Confidence Difference: +0.016
-→ Production System hat 1.6% höhere Confidence
-→ Moderate Verbesserung, aber nicht dramatisch
+-> Production System hat 1.6% höhere Confidence
+-> Moderate Verbesserung, aber nicht dramatisch
 ```
 
 ### Speed Difference
@@ -228,8 +228,8 @@ Confidence Difference: +0.016
 **Beispiel:**
 ```
 Speed Difference: +0.045s
-→ Production System ist 45ms schneller
-→ 19.2% Verbesserung (bei 234ms Baseline)
+-> Production System ist 45ms schneller
+-> 19.2% Verbesserung (bei 234ms Baseline)
 ```
 
 ### Success Rate
@@ -247,7 +247,7 @@ Speed Difference: +0.045s
 - Sicherstellen dass Condition/Action optimal sind
 
 **Bottom-Regeln** (<1% Usage):
-- Selten genutzt → Utility senken oder entfernen?
+- Selten genutzt -> Utility senken oder entfernen?
 - ODER: Sehr spezifische Regel für Edge Cases (dann OK)
 
 ---
@@ -449,7 +449,7 @@ Halte fest, welche Tuning-Änderungen du gemacht hast und warum.
 - Confidence: +0.016, Speed: +0.045s
 
 ### 2025-11-15: Utility-Tuning
-- Changed: select_highest_confidence_fact utility 0.90 → 0.95
+- Changed: select_highest_confidence_fact utility 0.90 -> 0.95
 - Re-Evaluation: 1000 queries
 - Result: Confidence +0.021, Speed +0.048s (improved!)
 ```

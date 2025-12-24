@@ -21,6 +21,36 @@ logger = get_logger(__name__)
 config = get_config()
 
 
+def normalize_ascii_umlauts(text: str) -> str:
+    """
+    Convert ASCII representations of German umlauts to actual umlauts.
+
+    Common ASCII representations used when umlauts aren't available:
+    - ae -> a (with umlaut)
+    - oe -> o (with umlaut)
+    - ue -> u (with umlaut)
+
+    Note: We don't convert 'ss' to 'ß' as 'ss' is also valid German.
+
+    Args:
+        text: Text with potential ASCII umlaut representations
+
+    Returns:
+        Text with ASCII umlauts converted to proper German umlauts
+    """
+    # Order matters: do replacements for both cases
+    result = text
+    # Lowercase
+    result = result.replace("ae", "\u00e4")  # a with umlaut
+    result = result.replace("oe", "\u00f6")  # o with umlaut
+    result = result.replace("ue", "\u00fc")  # u with umlaut
+    # Uppercase (for capitalized words)
+    result = result.replace("Ae", "\u00c4")  # A with umlaut
+    result = result.replace("Oe", "\u00d6")  # O with umlaut
+    result = result.replace("Ue", "\u00dc")  # U with umlaut
+    return result
+
+
 class PatternOrchestrator:
     """Zentrale Koordination aller Pattern Recognition Features"""
 
@@ -300,7 +330,13 @@ class PatternOrchestrator:
                 continue
 
             # Check base dictionary FIRST (common German words)
-            if clean_word.lower() in self.base_dictionary:
+            # Also check with ASCII umlauts normalized (e.g., "waechst" -> "wachst")
+            word_lower = clean_word.lower()
+            word_normalized = normalize_ascii_umlauts(word_lower)
+            if (
+                word_lower in self.base_dictionary
+                or word_normalized in self.base_dictionary
+            ):
                 corrected_words.append(word)
                 continue
 

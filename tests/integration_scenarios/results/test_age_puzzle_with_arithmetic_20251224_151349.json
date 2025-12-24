@@ -1,0 +1,26 @@
+{
+  "scenario": "test_age_puzzle_with_arithmetic",
+  "timestamp": "2025-12-24T15:13:49.233056",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T15:13:49.234063",
+    "input_text": "\nDrei Personen haben verschiedene Alter.\n\nHinweise:\n1. Anna ist 5 Jahre aelter als Ben.\n2. Ben ist doppelt so alt wie Clara.\n3. Die Summe aller Alter ist 55 Jahre.\n4. Clara ist juenger als 10 Jahre.\n\nFrage: Wie alt ist jede Person?\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T15:13:49.387488",
+    "response": "KaiResponse(text='Anna ist 25 Jahre alt. Ben ist 20 Jahre alt. Clara ist 10 Jahre alt.', trace=['Logic Puzzle Solver'], answer_id=None, confidence=1.0, strategy='logic_puzzle', evaluation=None, proof_tree=ProofTree(query='Frage: Wie alt ist jede Person?', root_steps=[ProofStep(step_id='arithmetic_detection', step_type=<StepType.PREMISE: 'premise'>, inputs=[], rule_name=None, output='Arithmetic/Age puzzle detected', confidence=0.95, explanation_text='Puzzle with 3 persons and age constraints', parent_steps=[], bindings={}, metadata={'entities': ['Ben', 'Clara', 'Anna']}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 385974), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_1', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 1: anna ist 5 jahre aelter als ben', confidence=0.9, explanation_text='Parsed arithmetic constraint: older_by', parent_steps=[], bindings={}, metadata={'type': 'older_by', 'person1': 'anna', 'person2': 'ben', 'diff': 5, 'text': 'anna ist 5 jahre aelter als ben'}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 386799), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_2', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 2: ben ist doppelt so alt wie clara', confidence=0.9, explanation_text='Parsed arithmetic constraint: double', parent_steps=[], bindings={}, metadata={'type': 'double', 'person1': 'ben', 'person2': 'clara', 'text': 'ben ist doppelt so alt wie clara'}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 386804), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_3', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 3: die summe aller alter ist 55', confidence=0.9, explanation_text='Parsed arithmetic constraint: sum', parent_steps=[], bindings={}, metadata={'type': 'sum', 'total': 55, 'text': 'die summe aller alter ist 55'}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 386806), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='constraint_4', step_type=<StepType.RULE_APPLICATION: 'rule_application'>, inputs=[], rule_name=None, output='Constraint 4: clara ist juenger als 10 jahre', confidence=0.9, explanation_text='Parsed arithmetic constraint: less_than', parent_steps=[], bindings={}, metadata={'type': 'less_than', 'person': 'clara', 'threshold': 10, 'text': 'clara ist juenger als 10 jahre'}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 386808), source_component='component_45_logic_puzzle_solver_core', subgoals=[]), ProofStep(step_id='solution_found', step_type=<StepType.CONCLUSION: 'conclusion'>, inputs=[], rule_name=None, output=\"Loesung gefunden: {'ben': 20, 'clara': 10, 'anna': 25}\", confidence=0.95, explanation_text='System of equations solved', parent_steps=[], bindings={}, metadata={'solution': {'ben': 20, 'clara': 10, 'anna': 25}}, timestamp=datetime.datetime(2025, 12, 24, 15, 13, 49, 386915), source_component='component_45_logic_puzzle_solver_core', subgoals=[])], metadata={'confidence': 0.9, 'num_steps': 6}, created_at=datetime.datetime(2025, 12, 24, 15, 13, 49, 386919)))",
+    "confidence": 1.0
+  },
+  "metadata": {
+    "scenario_name": "test_age_puzzle_with_arithmetic",
+    "start_time": "2025-12-24T15:13:49.233056",
+    "end_time": "2025-12-24T15:13:49.387491"
+  }
+}

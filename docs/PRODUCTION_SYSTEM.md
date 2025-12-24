@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Component:** `component_54_production_system.py`, `component_1_netzwerk_production_rules.py`
-**Status:** ✅ Operational (PHASE 9 Complete)
+**Status:** [OK] Operational (PHASE 9 Complete)
 
 ---
 
@@ -47,13 +47,13 @@ Das Production System ist ein **regelbasiertes Response-Generation-System** nach
             ▼           │
    ┌─────────────────┐  │
    │  RESOLVE        │◄─┘  Select best rule via
-   │  (Conflict Res.)│     Utility × Specificity
+   │  (Conflict Res.)│     Utility * Specificity
    └────────┬────────┘
             │
             ▼
    ┌─────────────────┐
    │  ACT            │     Execute selected rule
-   │  (Rule Action)  │     → Update Working Memory
+   │  (Rule Action)  │     -> Update Working Memory
    └────────┬────────┘
             │
             ▼
@@ -97,7 +97,7 @@ Das Production System ist in **7 spezialisierte Module** aufgeteilt (refactored 
 - **Helper Methoden**: `get_facts_by_relation()`, `is_phase_complete()`
 
 **4. component_54_production_rule.py**
-- `ProductionRule` Datenklasse (Condition → Action)
+- `ProductionRule` Datenklasse (Condition -> Action)
 
 **5. component_54_production_engine.py**
 - `ProductionSystemEngine` (Recognize-Act Cycle Orchestrator)
@@ -112,7 +112,7 @@ Das Production System ist in **7 spezialisierte Module** aufgeteilt (refactored 
 
 **7. component_54_production_rules_lexical.py** (913 Zeilen)
 - **PHASE 3: Lexicalization Rules** (15 Regeln)
-- Basic Verbalisierung: Fakten → natürliche Sprache
+- Basic Verbalisierung: Fakten -> natürliche Sprache
 - Stilistische Variation: formal/casual, Copula-Variation, Konjunktionen
 - Fakten-Kompression und Elaboration
 
@@ -132,13 +132,13 @@ Das Production System ist in **7 spezialisierte Module** aufgeteilt (refactored 
 **10. component_54_production_rules_aggregator.py** (67 Zeilen)
 - Aggregator-Funktionen für Regelsets
 - **Funktionen**:
-  - `create_all_content_selection_rules()` → 15 Regeln
-  - `create_all_lexicalization_rules()` → 15 Regeln
-  - `create_all_discourse_management_rules()` → 12 Regeln
-  - `create_all_syntactic_realization_rules()` → 12 Regeln
-  - `create_all_phase3_rules()` → 27 Regeln (lexical + discourse)
-  - `create_all_phase4_rules()` → 12 Regeln (syntax)
-  - `create_complete_production_system()` → 54 Regeln (alle Phasen)
+  - `create_all_content_selection_rules()` -> 15 Regeln
+  - `create_all_lexicalization_rules()` -> 15 Regeln
+  - `create_all_discourse_management_rules()` -> 12 Regeln
+  - `create_all_syntactic_realization_rules()` -> 12 Regeln
+  - `create_all_phase3_rules()` -> 27 Regeln (lexical + discourse)
+  - `create_all_phase4_rules()` -> 12 Regeln (syntax)
+  - `create_complete_production_system()` -> 54 Regeln (alle Phasen)
 
 #### Wrapper-Module
 
@@ -175,7 +175,7 @@ component_54_production_rule_factories (helpers + constants)
   production_system.py (main wrapper)
 ```
 
-**Key Insight**: Keine zirkulären Dependencies. Klarer unidirektionaler Flow von Primitives → Helpers → Rules → Aggregators → Wrappers.
+**Key Insight**: Keine zirkulären Dependencies. Klarer unidirektionaler Flow von Primitives -> Helpers -> Rules -> Aggregators -> Wrappers.
 
 #### Developer Guidelines
 
@@ -194,10 +194,10 @@ component_54_production_rule_factories (helpers + constants)
 - **Tests**: `component_54_production_system` für Integration Tests, spezifische Module für Unit Tests
 
 **Module Size Guidelines**:
-- Content: 764 Zeilen (15 Regeln × ~51 Zeilen)
-- Lexical: 913 Zeilen (15 Regeln × ~61 Zeilen) - überschreitet 800-Zeilen-Limit um 113 Zeilen, gerechtfertigt durch funktionale Kohäsion
-- Discourse: 648 Zeilen (12 Regeln × ~54 Zeilen)
-- Syntax: 797 Zeilen (12 Regeln × ~66 Zeilen)
+- Content: 764 Zeilen (15 Regeln * ~51 Zeilen)
+- Lexical: 913 Zeilen (15 Regeln * ~61 Zeilen) - überschreitet 800-Zeilen-Limit um 113 Zeilen, gerechtfertigt durch funktionale Kohäsion
+- Discourse: 648 Zeilen (12 Regeln * ~54 Zeilen)
+- Syntax: 797 Zeilen (12 Regeln * ~66 Zeilen)
 - Alle Module außer Lexical unter CLAUDE.md 800-Zeilen-Guideline
 
 ---
@@ -262,7 +262,7 @@ rule = ProductionRule(
 
 **Lexicalization** (Wortwahl):
 - Wie werden Konzepte in natürliche Sprache übersetzt?
-- Beispiel: "IS_A" → "ist ein/eine"
+- Beispiel: "IS_A" -> "ist ein/eine"
 
 **Discourse** (Diskursstruktur):
 - Wie werden Sätze miteinander verbunden?
@@ -302,7 +302,7 @@ class ResponseGenerationState:
 
 **Zustandsübergänge:**
 ```
-Initial State → Rule1 → State1 → Rule2 → State2 → ... → Final State
+Initial State -> Rule1 -> State1 -> Rule2 -> State2 -> ... -> Final State
 ```
 
 Jeder Zustandsübergang wird als **ProofStep** in den ProofTree eingetragen (PHASE 6).
@@ -342,11 +342,11 @@ def my_condition(state: ResponseGenerationState) -> bool:
 ```
 
 **Best Practices für Conditions:**
-- ✅ Schnell evaluierbar (keine DB-Queries)
-- ✅ Keine Seiteneffekte
-- ✅ Deterministisch (gleiche Eingabe → gleiche Ausgabe)
-- ❌ Nicht zu spezifisch (sonst nie anwendbar)
-- ❌ Nicht zu allgemein (sonst immer anwendbar)
+- [OK] Schnell evaluierbar (keine DB-Queries)
+- [OK] Keine Seiteneffekte
+- [OK] Deterministisch (gleiche Eingabe -> gleiche Ausgabe)
+- [X] Nicht zu spezifisch (sonst nie anwendbar)
+- [X] Nicht zu allgemein (sonst immer anwendbar)
 
 **Schritt 2: Action definieren**
 ```python
@@ -376,11 +376,11 @@ def my_action(state: ResponseGenerationState) -> ResponseGenerationState:
 ```
 
 **Best Practices für Actions:**
-- ✅ IMMER neuen State zurückgeben (Immutability!)
-- ✅ Trace-Einträge für Debugging
-- ✅ Idempotent (mehrfaches Ausführen = einmaliges Ausführen)
-- ❌ Keine externen Seiteneffekte (DB-Writes, Logging außerhalb von Trace)
-- ❌ Nicht zu viele Änderungen auf einmal
+- [OK] IMMER neuen State zurückgeben (Immutability!)
+- [OK] Trace-Einträge für Debugging
+- [OK] Idempotent (mehrfaches Ausführen = einmaliges Ausführen)
+- [X] Keine externen Seiteneffekte (DB-Writes, Logging außerhalb von Trace)
+- [X] Nicht zu viele Änderungen auf einmal
 
 **Schritt 3: Utility und Specificity bestimmen**
 
@@ -477,18 +477,18 @@ prioritize_is_a_rule = create_production_rule(
 
 Im **Recognize-Schritt** kann der Conflict Set **mehrere Regeln** enthalten, die alle ihre Conditions erfüllen. Welche wird ausgewählt?
 
-### Strategie: Utility × Specificity Scoring
+### Strategie: Utility * Specificity Scoring
 
 ```python
 def calculate_priority(rule: ProductionRule) -> float:
     """
     Berechnet die Priorität einer Regel.
 
-    Formel: Priority = Utility × Specificity
+    Formel: Priority = Utility * Specificity
 
-    - Hohe Utility + Hohe Specificity → Beste Wahl
-    - Hohe Utility + Niedrige Specificity → Oft anwendbar, aber nicht präzise
-    - Niedrige Utility + Hohe Specificity → Präzise, aber wenig wertvoll
+    - Hohe Utility + Hohe Specificity -> Beste Wahl
+    - Hohe Utility + Niedrige Specificity -> Oft anwendbar, aber nicht präzise
+    - Niedrige Utility + Hohe Specificity -> Präzise, aber wenig wertvoll
     """
     return rule.utility * rule.specificity
 ```
@@ -509,7 +509,7 @@ def calculate_priority(rule: ProductionRule) -> float:
 conflict_set = [rule for rule in all_rules if rule.condition(state)]
 
 if not conflict_set:
-    # Keine Regel anwendbar → Fallback
+    # Keine Regel anwendbar -> Fallback
     return default_response(state)
 
 # 2. RESOLVE: Wähle Regel mit höchster Priorität
@@ -527,7 +527,7 @@ selected_rule.last_applied = datetime.now()
 
 Falls mehrere Regeln **gleiche Priorität** haben:
 1. **Specificity**: Höhere Specificity gewinnt
-2. **Utility**: Falls immer noch Tie → höhere Utility
+2. **Utility**: Falls immer noch Tie -> höhere Utility
 3. **Alphabetisch**: Deterministisch nach Name
 
 ```python
@@ -544,7 +544,7 @@ selected_rule = conflict_set[0]
 
 ### Debugging Conflict Resolution
 
-**UI: Production Trace Viewer** (component_55, Settings → Analysis Window):
+**UI: Production Trace Viewer** (component_55, Settings -> Analysis Window):
 - Zeigt alle Regeln im Conflict Set pro Zyklus
 - Highlighting: Ausgewählte Regel in **Grün**, überstimmte in **Grau**
 - Details: Utility, Specificity, Priority für jede Regel
@@ -627,9 +627,9 @@ initial_state = engine._create_initial_state(
 
 **2. Iterative Transformationen**
 ```python
-Cycle 1: initial_state → Rule A → state1
-Cycle 2: state1 → Rule B → state2
-Cycle 3: state2 → Rule C → state3 (goal_achieved=True)
+Cycle 1: initial_state -> Rule A -> state1
+Cycle 2: state1 -> Rule B -> state2
+Cycle 3: state2 -> Rule C -> state3 (goal_achieved=True)
 ```
 
 **3. Terminierung**
@@ -650,7 +650,7 @@ proof_tree = state.proof_tree  # PHASE 6
 
 **WICHTIG:** State ist **immutable** - Actions müssen IMMER neuen State zurückgeben!
 
-**✅ RICHTIG:**
+**[OK] RICHTIG:**
 ```python
 def action_add_fact(state: ResponseGenerationState) -> ResponseGenerationState:
     new_state = state.copy()
@@ -658,7 +658,7 @@ def action_add_fact(state: ResponseGenerationState) -> ResponseGenerationState:
     return new_state
 ```
 
-**❌ FALSCH:**
+**[X] FALSCH:**
 ```python
 def action_add_fact(state: ResponseGenerationState) -> ResponseGenerationState:
     state.selected_content["fact"] = some_fact  # Mutiert Original-State!
@@ -750,7 +750,7 @@ ProofTree: Response Generation
 
 **ProofTreeWidget** (component_18):
 - Zeigt kompletten Generation-Prozess
-- Interaktiv: Klick auf Knoten → State-Details
+- Interaktiv: Klick auf Knoten -> State-Details
 - Export: JSON, PNG
 
 **Signals:**
@@ -864,7 +864,7 @@ successful_rules = repo.query_production_rules(
 **4. Aggregierte Statistiken:**
 ```python
 stats = repo.get_rule_statistics()
-# → {
+# -> {
 #     "total_rules": 72,
 #     "total_applications": 1523,
 #     "avg_success_rate": 0.87,
@@ -916,7 +916,7 @@ response = router.route_and_generate(
 ### UI: A/B Testing Dashboard
 
 **Component:** `component_56_ab_testing_dashboard.py`
-**Location:** Settings → Analysis Window → A/B Testing Tab
+**Location:** Settings -> Analysis Window -> A/B Testing Tab
 
 **Features:**
 - **Side-by-Side Vergleich**: Pipeline vs. Production System
@@ -935,12 +935,12 @@ response = router.route_and_generate(
 2. Sammle Metriken über 100+ Queries
 3. Vergleiche Systeme im Dashboard
 4. Identifiziere Winner
-5. Erhöhe Production Weight schrittweise (50% → 75% → 100%)
+5. Erhöhe Production Weight schrittweise (50% -> 75% -> 100%)
 
 ### Production Trace Viewer
 
 **Component:** `component_55_production_trace_widget.py`
-**Location:** Settings → Analysis Window → Production Trace Tab
+**Location:** Settings -> Analysis Window -> Production Trace Tab
 
 **Features:**
 - **Chronologische Liste** aller Regelanwendungen
@@ -985,7 +985,7 @@ response = router.route_and_generate(
 **1. Max Cycles anpassen:**
 ```python
 state.max_cycles = 10  # Default: 20
-# Weniger Zyklen → schneller, aber ggf. niedrigere Qualität
+# Weniger Zyklen -> schneller, aber ggf. niedrigere Qualität
 ```
 
 **2. Conflict Resolution vereinfachen:**
@@ -1007,13 +1007,13 @@ engine.enable_proof_tree = False
 
 ### 1. Regeldesign
 
-✅ **DO:**
+[OK] **DO:**
 - Eine Regel = eine Verantwortung (Single Responsibility)
 - Klare, beschreibende Namen (`select_top_fact` statt `rule_23`)
 - Dokumentiere Rationale in Metadata
 - Teste Regeln isoliert (Unit Tests)
 
-❌ **DON'T:**
+[X] **DON'T:**
 - Zu komplexe Conditions (spalte auf!)
 - Seiteneffekte in Actions (DB-Writes, Logging)
 - Magic Numbers (nutze Named Constants)
@@ -1021,49 +1021,49 @@ engine.enable_proof_tree = False
 
 ### 2. Conflict Resolution
 
-✅ **DO:**
+[OK] **DO:**
 - Utility/Specificity sorgfältig wählen
 - Tie-Breaking durch Metadata (z.B. Creation Date)
 - Monitoring: Welche Regeln gewinnen oft?
 
-❌ **DON'T:**
+[X] **DON'T:**
 - Alle Regeln mit Utility=1.0 (kein Ranking!)
 - Zu viele Regeln mit identischer Priority
-- Ignore Conflict Set Größe (zu viele Kandidaten → langsam)
+- Ignore Conflict Set Größe (zu viele Kandidaten -> langsam)
 
 ### 3. Working Memory
 
-✅ **DO:**
+[OK] **DO:**
 - Immutability einhalten (state.copy())
 - Traces für Debugging
 - State-Validierung (Invarianten prüfen)
 
-❌ **DON'T:**
+[X] **DON'T:**
 - State direkt mutieren
 - Zu große State-Objekte (Split auf!)
 - Vergessen goal_achieved zu setzen
 
 ### 4. Performance
 
-✅ **DO:**
+[OK] **DO:**
 - Profiling für kritische Regeln
 - Caching für teure Conditions
 - Batch-Updates für Neo4j
 
-❌ **DON'T:**
+[X] **DON'T:**
 - DB-Queries in Conditions (nutze Cache!)
 - Unbegrenzte Zyklen (immer max_cycles setzen)
 - Ignore Memory-Leaks (State-Pooling nutzen)
 
 ### 5. Testing
 
-✅ **DO:**
+[OK] **DO:**
 - Unit Tests für Conditions/Actions
 - Integration Tests für Engine
 - Property-Based Tests für Invarianten
 - Benchmark Tests für Performance
 
-❌ **DON'T:**
+[X] **DON'T:**
 - Tests ohne Assertions
 - Flaky Tests (Non-Determinismus)
 - Ignore Edge Cases
@@ -1075,7 +1075,7 @@ engine.enable_proof_tree = False
 ### Problem: Regel wird nie angewendet
 
 **Diagnose:**
-1. Check Condition: `rule.condition(state)` → `True`?
+1. Check Condition: `rule.condition(state)` -> `True`?
 2. Check Conflict Set: Ist Regel im Conflict Set?
 3. Check Priority: Andere Regel mit höherer Priority?
 
@@ -1109,7 +1109,7 @@ engine.enable_proof_tree = False
 **Diagnose:**
 1. Check Rules: Welche Regeln haben niedrige Utility?
 2. Check Facts: Input-Facts mit niedriger Confidence?
-3. Check Cycles: Zu viele Zyklen → Confidence-Decay?
+3. Check Cycles: Zu viele Zyklen -> Confidence-Decay?
 
 **Lösung:**
 - Utility der wichtigen Regeln erhöhen

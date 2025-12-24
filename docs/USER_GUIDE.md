@@ -162,7 +162,7 @@ Wo liegt Berlin?
   - Klare Fehlermeldungen bei nicht unterstützten Formaten
   - Validierung von Dateipfaden und Zugriffsrechten
   - Graceful Degradation bei partiell beschädigten Dokumenten
-- **Workflow**: `Lese Datei: path/to/file.pdf` → Text-Extraktion → Automatische Ingestion → Wissensgraph-Update
+- **Workflow**: `Lese Datei: path/to/file.pdf` -> Text-Extraktion -> Automatische Ingestion -> Wissensgraph-Update
 
 ---
 
@@ -171,7 +171,7 @@ Wo liegt Berlin?
 KAI kann jetzt räumliche Beziehungen verstehen, lernen und darauf schließen! Das System unterstützt 2D-Grids, geometrische Formen und räumliche Relationen.
 
 **Was KAI kann:**
-- Grids erstellen und verwalten (Schachbretter, Sudoku, beliebige N×M Grids)
+- Grids erstellen und verwalten (Schachbretter, Sudoku, beliebige NxM Grids)
 - Objekte auf Grids platzieren und bewegen
 - Räumliche Beziehungen lernen (nördlich von, benachbart zu, enthalten in, etc.)
 - Pfade finden (kürzeste Wege, Hindernisse umgehen)
@@ -184,7 +184,7 @@ KAI kann jetzt räumliche Beziehungen verstehen, lernen und darauf schließen! D
 
 **1. Grid erstellen und Objekte platzieren**
 ```
-Lerne: Erstelle ein 8×8 Grid namens "schachbrett"
+Lerne: Erstelle ein 8x8 Grid namens "schachbrett"
 Lerne: Der weiße König steht auf Position (4, 0) auf dem schachbrett
 Lerne: Die weiße Dame steht auf Position (3, 0) auf dem schachbrett
 ```
@@ -218,7 +218,7 @@ Erkenne Muster auf dem aktuellen schachbrett
 
 #### Räumliche Relationen
 
-**Richtungsbezogen** (Transitiv - A nördlich von B, B nördlich von C → A nördlich von C):
+**Richtungsbezogen** (Transitiv - A nördlich von B, B nördlich von C -> A nördlich von C):
 - `NORTH_OF` (nördlich von)
 - `SOUTH_OF` (südlich von)
 - `EAST_OF` (östlich von)
@@ -243,8 +243,8 @@ Erkenne Muster auf dem aktuellen schachbrett
 
 **Beispiel 1: Schach-ähnliches Grid**
 ```
-Benutzer: Lerne: Erstelle ein 8×8 Grid "chess"
-KAI: Grid "chess" erstellt (8×8, orthogonale Nachbarschaft)
+Benutzer: Lerne: Erstelle ein 8x8 Grid "chess"
+KAI: Grid "chess" erstellt (8x8, orthogonale Nachbarschaft)
 
 Benutzer: Lerne: Der König steht auf (4, 0) auf chess
 KAI: König platziert auf Position (4, 0)
@@ -271,7 +271,7 @@ Benutzer: Liegt Hamburg nördlich von Zürich?
 KAI: Ja (transitive Schlussfolgerung):
     Hamburg NORTH_OF München (direkt)
     München NORTH_OF Zürich (direkt)
-    → Hamburg NORTH_OF Zürich (transitiv, Konfidenz: 0.85)
+    -> Hamburg NORTH_OF Zürich (transitiv, Konfidenz: 0.85)
 ```
 
 **Beispiel 3: Räumliche Muster**
@@ -289,7 +289,7 @@ KAI: Erkannte Muster: "backrank_checkmate" (Übereinstimmung: 95%)
 
 **Beispiel 4: Pfadsuche mit Hindernissen**
 ```
-Benutzer: Lerne: Erstelle ein 10×10 Grid "labyrinth"
+Benutzer: Lerne: Erstelle ein 10x10 Grid "labyrinth"
 KAI: Grid "labyrinth" erstellt
 
 Benutzer: Lerne: Hindernisse auf (3,3), (3,4), (3,5), (3,6)
@@ -297,7 +297,7 @@ KAI: Hindernisse platziert
 
 Benutzer: Finde Weg von (0,0) nach (9,9) auf labyrinth
 KAI: Pfad gefunden (12 Schritte, Algorithmus: BFS):
-     (0,0) → (1,0) → (2,0) → (2,1) → ... → (9,9)
+     (0,0) -> (1,0) -> (2,0) -> (2,1) -> ... -> (9,9)
      [Visualisierung im Spatial Grid Widget]
 ```
 
@@ -306,7 +306,7 @@ KAI: Pfad gefunden (12 Schritte, Algorithmus: BFS):
 KAI bietet ein **interaktives Grid-Visualisierungs-Widget** im "Spatial Grid" Tab:
 
 **Features:**
-- Grafische Darstellung von Grids (8×8, 10×10, beliebige Größen)
+- Grafische Darstellung von Grids (8x8, 10x10, beliebige Größen)
 - Objekte werden als farbige Zellen angezeigt
 - Pfade werden als Linien visualisiert
 - Animierte Objektbewegungen
@@ -333,21 +333,21 @@ KAI kann auch mit geometrischen Formen arbeiten:
 **Dreiecke:**
 ```
 Lerne: Dreieck mit Eckpunkten (0,0), (4,0), (2,3)
-Berechne Fläche des Dreiecks → 6.0 (Heron's Formel)
+Berechne Fläche des Dreiecks -> 6.0 (Heron's Formel)
 ```
 
 **Vierecke:**
 ```
 Lerne: Rechteck mit Eckpunkten (0,0), (4,0), (4,3), (0,3)
-Ist das ein Rechteck? → Ja
-Berechne Fläche → 12.0 (Shoelace-Formel)
+Ist das ein Rechteck? -> Ja
+Berechne Fläche -> 12.0 (Shoelace-Formel)
 ```
 
 **Kreise:**
 ```
 Lerne: Kreis mit Zentrum (5,5) und Radius 3
-Berechne Fläche → 28.27 (πr²)
-Ist Punkt (6,6) im Kreis? → Ja
+Berechne Fläche -> 28.27 (PIr²)
+Ist Punkt (6,6) im Kreis? -> Ja
 ```
 
 #### Tipps für räumliches Reasoning
@@ -362,14 +362,14 @@ Ist Punkt (6,6) im Kreis? → Ja
 #### Performance
 
 **Grid-Operationen:**
-- Grid erstellen (8×8): <1ms
+- Grid erstellen (8x8): <1ms
 - Objekt platzieren: 2-5ms (Neo4j)
 - Position abfragen: <1ms (mit Cache: 10-20x schneller)
 
 **Pfadsuche:**
-- BFS (8×8 Grid, leer): 2-5ms
-- A* (8×8 Grid, mit Hindernissen): 8-15ms
-- Große Grids (16×16): 20-50ms
+- BFS (8x8 Grid, leer): 2-5ms
+- A* (8x8 Grid, mit Hindernissen): 8-15ms
+- Große Grids (16x16): 20-50ms
 
 **Muster-Erkennung:**
 - Muster speichern: 10-30ms
@@ -412,7 +412,7 @@ pytest test_kai_worker.py -v
 ## Einstellungen & Konfiguration
 
 KAI verfügt über ein umfassendes Settings-System mit folgenden Features:
-- **GUI-basierte Konfiguration** über Settings-Dialog (Menü → Einstellungen)
+- **GUI-basierte Konfiguration** über Settings-Dialog (Menü -> Einstellungen)
 - **Persistente Speicherung** in `kai_config.json`
 - **7 Settings-Tabs** für verschiedene Aspekte
 - **Echtzeit-Aktualisierung** für Theme-Änderungen
@@ -457,15 +457,15 @@ Einstellungen:
 **Verhalten:**
 - **< Low Threshold**: KAI fragt nach, was gemeint ist (Klärungsfrage)
 - **< Medium Threshold**: KAI bittet um Bestätigung
-- **≥ Medium Threshold**: KAI führt Aktion direkt aus
+- **>= Medium Threshold**: KAI führt Aktion direkt aus
 
 **Beispiel:**
 ```
 Eingabe: "Ein Hund ist ein Tier"
 
-Konfidenz: 0.92 → Direkte Ausführung (≥ 0.85)
-Konfidenz: 0.78 → Bestätigungsanfrage (< 0.85)
-Konfidenz: 0.35 → Klärungsfrage (< 0.40)
+Konfidenz: 0.92 -> Direkte Ausführung (>= 0.85)
+Konfidenz: 0.78 -> Bestätigungsanfrage (< 0.85)
+Konfidenz: 0.35 -> Klärungsfrage (< 0.40)
 ```
 
 #### 4. Muster
@@ -475,7 +475,7 @@ Konfidenz: 0.35 → Klärungsfrage (< 0.40)
 - `prototype_novelty_threshold` (5.0-30.0): Euklidische Distanz in 384D semantischem Raum
 - Standard: 15.0
 - **< Threshold**: Update existierenden Prototyp
-- **≥ Threshold**: Erstelle neuen Prototyp
+- **>= Threshold**: Erstelle neuen Prototyp
 
 **Typo Detection (Adaptive):**
 - `typo_min_threshold` (1-10): Minimum Wort-Vorkommen (Standard: 3)
@@ -603,7 +603,7 @@ KAI nutzt intelligentes Caching für deutlich schnellere Response-Zeiten:
 
 1. **Einfach anfangen**: Nutze `Lerne: ...` für schnelles, unkompliziertes Lernen
 2. **Explizite Befehle**: Alle Befehle (z.B. "Lerne:", "Definiere:", "Lerne Muster:") haben höchste Priorität
-3. **Normalisierung**: KAI entfernt Artikel automatisch ("der Hund" → "hund")
+3. **Normalisierung**: KAI entfernt Artikel automatisch ("der Hund" -> "hund")
 4. **Groß-/Kleinschreibung**: KAI speichert alles in Kleinbuchstaben
 5. **Wissenslücken**: Bei unbekannten Begriffen fragt KAI automatisch nach
 6. **Setup**: Vor der ersten Nutzung `setup_initial_knowledge.py` ausführen
@@ -632,7 +632,7 @@ Der Beweisbaum wird automatisch angezeigt, wenn KAI komplexe Schlussfolgerungen 
 - Kreis: Hypothesen, probabilistische Schlüsse
 
 **Farben (Konfidenz):**
-- Grün: Hohe Sicherheit (≥80%)
+- Grün: Hohe Sicherheit (>=80%)
 - Gelb: Mittlere Sicherheit (50-80%)
 - Rot: Niedrige Sicherheit (<50%)
 
@@ -719,12 +719,12 @@ Ab Version 2.0 nutzt KAI ein **Production System** für die Generierung von Antw
 
 **Alte Pipeline-Methode** (bis v1.x):
 ```
-Fakten → Template füllen → Fertige Antwort
+Fakten -> Template füllen -> Fertige Antwort
 ```
 
 **Neues Production System** (ab v2.0):
 ```
-Fakten → Regeln anwenden → Inhalte auswählen → Wortwahl → Struktur → Fertige Antwort
+Fakten -> Regeln anwenden -> Inhalte auswählen -> Wortwahl -> Struktur -> Fertige Antwort
 ```
 
 Das Production System wendet **Regeln** an, die in 4 Kategorien eingeteilt sind:
@@ -741,11 +741,11 @@ User: "Was ist ein Hund?"
 
 Production System:
 1. Content Selection: Wähle Top-Fakt "Hund IS_A Tier" (Confidence: 0.95)
-2. Lexicalization: "IS_A" → "ist ein"
+2. Lexicalization: "IS_A" -> "ist ein"
 3. Syntax: Baue Satz "Ein Hund ist ein Tier"
 4. Discourse: (keine Konjunktion nötig für einfachen Satz)
 
-→ Antwort: "Ein Hund ist ein Tier."
+-> Antwort: "Ein Hund ist ein Tier."
 ```
 
 ### Unterschied zur alten Methode
@@ -760,16 +760,16 @@ Production System:
 
 **Konkrete Verbesserungen:**
 
-✅ **Natürlichere Antworten**: Weniger Wiederholungen, bessere Übergänge
-✅ **Transparenz**: Beweisbaum zeigt, welche Regeln angewendet wurden
-✅ **Adaptive Qualität**: KAI lernt aus deinem Feedback, welche Regeln gut funktionieren
-✅ **Konsistenz**: Gleiche Regeln für ähnliche Fragen → konsistentere Antworten
+- **Natuerlichere Antworten**: Weniger Wiederholungen, bessere Uebergaenge
+- **Transparenz**: Beweisbaum zeigt, welche Regeln angewendet wurden
+- **Adaptive Qualitaet**: KAI lernt aus deinem Feedback, welche Regeln gut funktionieren
+- **Konsistenz**: Gleiche Regeln fuer aehnliche Fragen -> konsistentere Antworten
 
 ### Wie sehe ich, welches System verwendet wurde?
 
 **Methode 1: A/B Testing Dashboard**
 
-Location: **Einstellungen → Analysis Window → A/B Testing Tab**
+Location: **Einstellungen -> Analysis Window -> A/B Testing Tab**
 
 - Zeigt Statistiken für beide Systeme (Pipeline vs. Production System)
 - Aktueller Split (z.B. 50% Pipeline, 50% Production System)
@@ -777,15 +777,15 @@ Location: **Einstellungen → Analysis Window → A/B Testing Tab**
 
 **Methode 2: Production Trace Viewer**
 
-Location: **Einstellungen → Analysis Window → Production Trace Tab**
+Location: **Einstellungen -> Analysis Window -> Production Trace Tab**
 
 - Zeigt **alle Regelanwendungen** für die letzte generierte Antwort
-- Wenn du hier Einträge siehst → Production System wurde verwendet
-- Wenn leer → Pipeline wurde verwendet
+- Wenn du hier Einträge siehst -> Production System wurde verwendet
+- Wenn leer -> Pipeline wurde verwendet
 
 **Methode 3: Beweisbaum**
 
-Location: **Hauptfenster → Beweisbaum Tab**
+Location: **Hauptfenster -> Beweisbaum Tab**
 
 - Production System-Antworten haben einen speziellen **"Response Generation"** Bereich im Beweisbaum
 - Zeigt alle Schritte von "User Query" bis "Final Response"
@@ -804,7 +804,7 @@ cat logs/kai.log | grep "production_system"
 
 Du kannst den Anteil des Production Systems anpassen:
 
-**Location**: **Einstellungen → Analysis Window → A/B Testing Tab → Production Weight Slider**
+**Location**: **Einstellungen -> Analysis Window -> A/B Testing Tab -> Production Weight Slider**
 
 - **0%**: Nur alte Pipeline (Fallback, falls Probleme auftreten)
 - **50%**: Beide Systeme gleichmäßig (Standard, für Vergleich)
@@ -819,9 +819,9 @@ Du kannst den Anteil des Production Systems anpassen:
 **Wichtig**: Dein Feedback hilft dem Production System zu lernen!
 
 Nach jeder Antwort kannst du bewerten:
-- ✅ **Correct**: Antwort war gut → Regeln werden bevorzugt
-- ❌ **Incorrect**: Antwort war schlecht → Regeln werden seltener verwendet
-- ❓ **Unsure**: Teilweise richtig → Neutrale Bewertung
+- **Correct** [OK]: Antwort war gut -> Regeln werden bevorzugt
+- **Incorrect** [X]: Antwort war schlecht -> Regeln werden seltener verwendet
+- **Unsure** [?]: Teilweise richtig -> Neutrale Bewertung
 
 **Was passiert mit dem Feedback?**
 1. KAI speichert, welche Regeln für diese Antwort verwendet wurden
@@ -854,15 +854,15 @@ KAI: "Ein Hund ist ein Tier. Hunde sind Säugetiere und können bellen."
 ```
 Response Generation
 ├─ Cycle 1: select_highest_confidence_fact
-│   → Wähle "Hund IS_A Tier" (Conf: 0.95)
+│   -> Wähle "Hund IS_A Tier" (Conf: 0.95)
 ├─ Cycle 2: select_secondary_facts
-│   → Wähle "Hund IS_A Säugetier", "Hund CAPABLE_OF bellen"
+│   -> Wähle "Hund IS_A Säugetier", "Hund CAPABLE_OF bellen"
 ├─ Cycle 3: lexicalize_is_a_relation
-│   → "IS_A" → "ist ein/sind"
+│   -> "IS_A" -> "ist ein/sind"
 ├─ Cycle 4: combine_related_facts
-│   → Verbinde verwandte Fakten mit "und"
+│   -> Verbinde verwandte Fakten mit "und"
 └─ Cycle 5: format_complex_sentence
-    → "Ein Hund ist ein Tier. Hunde sind Säugetiere und können bellen."
+    -> "Ein Hund ist ein Tier. Hunde sind Säugetiere und können bellen."
 ```
 
 ### Häufige Fragen (FAQ)
@@ -901,10 +901,10 @@ A: Das System wählt automatisch eine alternative Regel (Conflict Resolution). I
 KAI lernt jetzt aus deinem Feedback! Nach jeder Antwort kannst du bewerten:
 
 **Buttons:**
-- ✅ **Correct**: Antwort war richtig
-- ❌ **Incorrect**: Antwort war falsch
-- ❓ **Unsure**: Nicht sicher / Teilweise richtig
-- 💬 **Custom Feedback**: Detailliertes Textfeedback
+- **Correct** [OK]: Antwort war richtig
+- **Incorrect** [X]: Antwort war falsch
+- **Unsure** [?]: Nicht sicher / Teilweise richtig
+- **Custom Feedback**: Detailliertes Textfeedback
 
 **Was passiert:**
 1. Feedback wird mit Query und verwendeter Strategy gespeichert
@@ -923,20 +923,20 @@ User: "Was ist ein Hund?"
 KAI: "Ein Hund ist ein Tier..." (Strategy: resonance)
 User: [Klickt ✅ Correct]
 
-→ Strategy "resonance" erhält +1 success_count
-→ Success Rate steigt von 85% → 86%
-→ Zukünftige ähnliche Fragen bevorzugen "resonance"
+-> Strategy "resonance" erhält +1 success_count
+-> Success Rate steigt von 85% -> 86%
+-> Zukünftige ähnliche Fragen bevorzugen "resonance"
 ```
 
 ### Resonance View (geplant)
 
-**Status**: 🔜 Kommend in v2.2
+**Status**: Geplant fuer v2.2
 
 Visualisierung der Cognitive Resonance Aktivierung:
 
 **Geplante Features:**
 - **Activation Wave Animation**: Zeigt, wie Aktivierung sich ausbreitet
-- **Resonance Points Highlighting**: Markiert zentrale Konzepte (⭐)
+- **Resonance Points Highlighting**: Markiert zentrale Konzepte (*)
 - **Reasoning Path Display**: Visualisiert multiple Pfade
 - **Interactive Exploration**: Klicke auf Konzepte für Details
 - **Wave-by-Wave Replay**: Schrittweise Ansicht der Ausbreitung
@@ -947,9 +947,9 @@ Visualisierung der Cognitive Resonance Aktivierung:
 │ Resonance View                      │
 ├─────────────────────────────────────┤
 │  Wave 0:  hund [1.000] (START)      │
-│  Wave 1:  tier [0.630] ⭐ (3 paths) │
+│  Wave 1:  tier [0.630] * (3 paths)  │
 │           säugetier [0.490]         │
-│           haustier [0.441] ⭐        │
+│           haustier [0.441] *         │
 │  Wave 2:  lebewesen [0.315]         │
 │           fleischfresser [0.343]    │
 │                                     │

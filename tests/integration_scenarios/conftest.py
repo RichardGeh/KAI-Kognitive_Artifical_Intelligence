@@ -5,6 +5,9 @@ Scenario-specific pytest fixtures for integration testing.
 Provides fixtures for KAI worker, logging, progress tracking, and confidence tracking.
 
 NO Unicode characters - ASCII only (see CLAUDE.md encoding rules).
+
+NOTE: This module imports MockSignals from tests.conftest to avoid duplication.
+The MockSignals class provides all 15+ signals that KaiWorker requires.
 """
 
 import json
@@ -13,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import MockSignals
 from tests.integration_scenarios.utils.confidence_calibrator import (
     ConfidenceCalibrationTracker,
 )
@@ -39,34 +43,19 @@ def kai_with_full_instrumentation(netzwerk_session, embedding_service_session):
     - ProofTree tracking
     - Confidence tracking
     - Memory tracking
-    """
-    from unittest.mock import Mock
 
+    Uses MockSignals from tests.conftest which provides all 15+ signals
+    that KaiWorker requires (response_ready, proof_tree_updated, reasoning_step,
+    finished, error, set_main_goal, clear_goals, add_sub_goal, update_sub_goal_status,
+    update_subgoal, inner_picture_update, preview_confirmation_needed, progress,
+    status_update).
+    """
     from kai_worker import KaiWorker
 
     worker = KaiWorker(netzwerk_session, embedding_service_session)
 
-    # Create mock signals that actually call connected callbacks
-    class MockSignal:
-        def __init__(self):
-            self.callbacks = []
-
-        def connect(self, callback):
-            self.callbacks.append(callback)
-
-        def emit(self, *args, **kwargs):
-            for callback in self.callbacks:
-                callback(*args, **kwargs)
-
-    # Create mock signals object with callable signal attributes
-    signals_mock = Mock()
-    signals_mock.response_ready = MockSignal()
-    signals_mock.proof_tree_updated = MockSignal()
-    signals_mock.reasoning_step = MockSignal()
-    signals_mock.finished = MockSignal()
-    signals_mock.error = MockSignal()
-
-    worker.signals = signals_mock
+    # Use complete MockSignals from tests.conftest (15+ signals)
+    worker.signals = MockSignals()
 
     # Enable verbose logging if method exists
     if hasattr(worker, "enable_comprehensive_logging"):
@@ -113,27 +102,49 @@ def baseline_scores(scenario_output_dir):
 def clean_graph_for_scenario(netzwerk_session):
     """
     Ensure clean graph state for each scenario test.
-    Clears all data except production rules and base dictionary.
+    Clears all data except production rules, base dictionary, and extraction rules.
+    Then adds essential ExtractionRules for testing.
     """
-    # Before test - clean graph
+    # Before test - clean graph (preserve essential rules)
     with netzwerk_session.driver.session(database="neo4j") as session:
-        # Clear all data except production rules and base dictionary
+        # Clear all data except production rules, base dictionary, and extraction rules
         session.run(
             """
             MATCH (n)
-            WHERE NOT n:ProductionRule AND NOT n:BaseDictionary
+            WHERE NOT n:ProductionRule AND NOT n:BaseDictionary AND NOT n:ExtractionRule
             DETACH DELETE n
         """
         )
 
+    # Add essential ExtractionRules for testing
+    # NOTE: relation_type has UNIQUE constraint, so only ONE pattern per relation type
+    # Patterns must use EXACTLY 2 capture groups: (subject) and (object)
+    essential_rules = [
+        # CAPABLE_OF: "Ein X bellt/fliegt/kann Y" -> X CAPABLE_OF verb
+        # Matches: "Ein Hund bellt", "Ein Vogel fliegt", "Ein Hund kann bellen"
+        (
+            "CAPABLE_OF",
+            r"^(?:ein(?:e)?\s+)?(.+?)\s+(bellt|fliegt|schwimmt|laeuft|springt|singt|schlaeft|frisst|trinkt|bellen|fliegen|kann\s+\w+)\.?$",
+        ),
+        # IS_A: "X ist ein Y" -> X IS_A Y
+        ("IS_A", r"^(.+?)\s+ist\s+(?:ein(?:e)?\s+)?(.+)\.?$"),
+        # HAS_PROPERTY: "X mag Y" -> X HAS_PROPERTY Y
+        ("HAS_PROPERTY", r"^(.+?)\s+mag\s+(.+)\.?$"),
+        # PART_OF: "X hat ein Y"
+        ("PART_OF", r"^(.+?)\s+hat\s+(?:ein(?:e)?\s+)?(.+)\.?$"),
+    ]
+
+    for relation_type, pattern in essential_rules:
+        netzwerk_session.create_extraction_rule(relation_type, pattern)
+
     yield
 
-    # After test - clean graph again
+    # After test - clean graph again (preserve essential rules)
     with netzwerk_session.driver.session(database="neo4j") as session:
         session.run(
             """
             MATCH (n)
-            WHERE NOT n:ProductionRule AND NOT n:BaseDictionary
+            WHERE NOT n:ProductionRule AND NOT n:BaseDictionary AND NOT n:ExtractionRule
             DETACH DELETE n
         """
         )
@@ -152,35 +163,21 @@ def kai_worker_scenario_mode(
 ):
     """
     KAI worker configured specifically for scenario testing.
-    Includes extended timeouts, comprehensive logging, and deeper reasoning.
-    """
-    from unittest.mock import Mock
 
+    Includes:
+    - Extended timeouts (configurable via SCENARIO_TIMEOUT env var)
+    - Comprehensive logging enabled
+    - Deeper reasoning allowed (max_reasoning_depth=20)
+
+    Uses MockSignals from tests.conftest which provides all 15+ signals
+    that KaiWorker requires.
+    """
     from kai_worker import KaiWorker
 
     worker = KaiWorker(netzwerk_session, embedding_service_session)
 
-    # Create mock signals that actually call connected callbacks
-    class MockSignal:
-        def __init__(self):
-            self.callbacks = []
-
-        def connect(self, callback):
-            self.callbacks.append(callback)
-
-        def emit(self, *args, **kwargs):
-            for callback in self.callbacks:
-                callback(*args, **kwargs)
-
-    # Create mock signals object with callable signal attributes
-    signals_mock = Mock()
-    signals_mock.response_ready = MockSignal()
-    signals_mock.proof_tree_updated = MockSignal()
-    signals_mock.reasoning_step = MockSignal()
-    signals_mock.finished = MockSignal()
-    signals_mock.error = MockSignal()
-
-    worker.signals = signals_mock
+    # Use complete MockSignals from tests.conftest (15+ signals)
+    worker.signals = MockSignals()
 
     # Configure for scenario testing
     if hasattr(worker, "enable_comprehensive_logging"):
@@ -202,3 +199,26 @@ def scenario_mode():
 
     logging.getLogger().setLevel(logging.DEBUG)
     return True
+
+
+@pytest.fixture(scope="function", autouse=True)
+def disable_word_usage_tracking():
+    """
+    Disable word usage tracking for integration scenario tests.
+    This significantly improves test performance by avoiding slow
+    UsageContext database operations.
+    """
+    from kai_config import get_config
+
+    config = get_config()
+
+    # Store original value
+    original_value = config.get("word_usage_tracking", True)
+
+    # Disable for test
+    config._config["word_usage_tracking"] = False
+
+    yield
+
+    # Restore original value
+    config._config["word_usage_tracking"] = original_value

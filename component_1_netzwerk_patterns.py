@@ -1,424 +1,705 @@
 # component_1_netzwerk_patterns.py
 """
-Pattern learning and extraction rule management.
+Pattern and Slot management for pattern discovery system.
 
-This module handles:
-- Extraction rule creation and retrieval
-- Pattern prototype management (CRUD operations)
-- Lexical trigger management
-- Linking prototypes to rules
+This module handles operations related to learned patterns and their components:
+- Pattern creation and statistics updates
+- PatternItem creation (LITERAL and SLOT types)
+- Slot creation and allowed value management
+- Pattern-utterance matching recording
+- Batch operations for efficiency
+
+Extracted as part of Pattern Discovery System implementation (Part 1).
 """
 
+import re
+import threading
+import uuid
 from typing import Any, Dict, List, Optional
 
 from neo4j import Driver
 
 from component_15_logging_config import get_logger
-from component_27_regex_validator import get_regex_validator
-from infrastructure.cache_manager import cache_manager
+from kai_exceptions import DatabaseException, wrap_exception
 
 logger = get_logger(__name__)
 
+# Valid pattern types (security - prevent injection)
+VALID_PATTERN_TYPES = {"seed", "learned", "template"}
 
-class KonzeptNetzwerkPatterns:
+# Valid PatternItem kinds
+VALID_ITEM_KINDS = {"LITERAL", "SLOT"}
+
+# Entity name validation regex (from CLAUDE.md)
+ENTITY_NAME_REGEX = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
+
+
+class PatternManager:
     """
-    Pattern learning and extraction rule operations.
+    Manages pattern and slot CRUD operations in Neo4j.
 
-    Performance-Optimierung:
-    - TTL-Cache für Extraktionsregeln (10 Minuten TTL, da sich diese selten ändern)
+    Responsibilities:
+    - Create/update pattern nodes
+    - Create pattern items (literals and slots)
+    - Manage slot allowed values
+    - Record pattern-utterance matches
+    - Batch operations for efficiency
+
+    Thread Safety:
+        This class is thread-safe. All database operations use parameterized
+        queries to prevent injection.
+
+    Attributes:
+        driver: Neo4j driver instance
+        _lock: Thread lock for critical operations
+        _pattern_matcher: Optional pattern matcher for cache invalidation
     """
 
-    def __init__(self, driver: Driver):
-        """
-        Initialize with an existing Neo4j driver.
+    def __init__(self, driver: Driver, pattern_matcher=None):
+        if not driver:
+            raise ValueError("Driver cannot be None")
 
-        Args:
-            driver: Neo4j driver instance from KonzeptNetzwerkCore
-        """
         self.driver = driver
+        self._lock = threading.RLock()
+        self._pattern_matcher = pattern_matcher
 
-        # Cache für Extraktionsregeln (10 Minuten TTL, da sich diese selten ändern) via CacheManager
-        cache_manager.register_cache("extraction_rules", maxsize=50, ttl=600)
+        logger.debug("PatternManager initialisiert")
 
-    def create_extraction_rule(self, relation_type: str, regex_pattern: str) -> bool:
+    def _validate_lemma(self, lemma: str) -> str:
         """
-        Erstellt oder aktualisiert eine Extraktionsregel im Graphen.
-
-        KORRIGIERT: Robuste Fehlerbehandlung und explizite Verifikation der Persistierung.
-        NEU: Inline-Validierung des Regex-Musters vor dem Speichern.
+        Validate and sanitize lemma for AllowedLemma node (SECURITY).
 
         Args:
-            relation_type: Der Typ der Relation (z.B. 'IS_A', 'HAS_PROPERTY')
-            regex_pattern: Das Regex-Pattern zur Extraktion
+            lemma: Raw lemma value from user input
 
         Returns:
-            bool: True wenn erfolgreich erstellt/aktualisiert, False bei Fehler
+            Sanitized lemma value
 
         Raises:
-            Exception: Bei kritischen Datenbankfehlern
+            ValueError: If lemma is invalid or too long
+
+        Security:
+            - Prevents DOS via extremely long values
+            - Ensures lemma matches entity name regex
+            - Normalizes to lowercase alphanumeric + underscore
         """
-        if not self.driver:
-            logger.error("create_extraction_rule: Kein DB-Driver verfügbar")
-            return False
+        if not lemma or not lemma.strip():
+            raise ValueError("Lemma cannot be empty")
 
-        # INLINE-VALIDIERUNG: Prüfe Regex-Muster vor dem Speichern
-        validator = get_regex_validator()
-        is_valid, error_msg, details = validator.validate_pattern(regex_pattern)
+        if len(lemma) > 63:
+            raise ValueError(f"Lemma must be <= 63 chars, got: {len(lemma)}")
 
-        if not is_valid:
-            logger.error(
-                f"create_extraction_rule: Regex-Validierung fehlgeschlagen für '{relation_type}'",
-                extra={"error": error_msg, "pattern": regex_pattern},
-            )
-            # Gebe nutzerfreundliche Fehlermeldung zurück
-            # (Der Aufrufer sollte diese loggen/anzeigen)
-            return False
+        # Normalize to lowercase alphanumeric + underscore
+        sanitized = re.sub(r"[^a-z0-9_]", "", lemma.lower())
 
-        # Log Warnungen (falls vorhanden)
-        warnings = details.get("warnings", [])
-        if warnings:
-            logger.warning(
-                f"create_extraction_rule: Regex-Warnungen für '{relation_type}'",
-                extra={"warnings": warnings, "pattern": regex_pattern},
+        if not sanitized:
+            raise ValueError(
+                f"Invalid lemma (no valid chars after sanitization): {lemma}"
             )
 
-        try:
-            # FIX: Explizite Transaktion für atomare CREATE + VERIFY Operation (Code Review 2025-11-21, Issue 3)
-            with self.driver.session(database="neo4j") as session:
-                with session.begin_transaction() as tx:
-                    # SCHRITT 1: Erstelle/Aktualisiere die Regel mit explizitem Return
-                    result = tx.run(
-                        """
-                        MERGE (r:ExtractionRule {relation_type: $rel_type})
-                        ON CREATE SET
-                            r.regex_pattern = $regex,
-                            r.created_at = timestamp(),
-                            r.updated_at = timestamp()
-                        ON MATCH SET
-                            r.regex_pattern = $regex,
-                            r.updated_at = timestamp()
-                        RETURN r.relation_type AS type,
-                            r.regex_pattern AS pattern,
-                            r.created_at AS created,
-                            r.updated_at AS updated
-                        """,
-                        rel_type=relation_type,
-                        regex=regex_pattern,
-                    )
-
-                    record = result.single()
-
-                    # SCHRITT 2: Verifikation der Rückgabe
-                    if not record:
-                        logger.error(
-                            f"create_extraction_rule: Keine Rückgabe für Regel '{relation_type}'. "
-                            "Transaktion möglicherweise fehlgeschlagen."
-                        )
-                        return False
-
-                    # SCHRITT 3: Validiere die gespeicherten Daten
-                    if record["type"] != relation_type:
-                        logger.error(
-                            f"create_extraction_rule: Relation-Type Mismatch. "
-                            f"Erwartet: '{relation_type}', Gespeichert: '{record['type']}'"
-                        )
-                        return False
-
-                    if record["pattern"] != regex_pattern:
-                        logger.error(
-                            f"create_extraction_rule: Pattern Mismatch für '{relation_type}'. "
-                            f"Erwartet: '{regex_pattern}', Gespeichert: '{record['pattern']}'"
-                        )
-                        return False
-
-                    # SCHRITT 4: Explizite Commit-Verifikation durch zweiten Read
-                    # Dies stellt sicher, dass die Daten wirklich persistiert wurden
-                    verify_result = tx.run(
-                        """
-                        MATCH (r:ExtractionRule {relation_type: $rel_type})
-                        RETURN count(r) AS count, r.regex_pattern AS pattern
-                        """,
-                        rel_type=relation_type,
-                    )
-
-                    verify_record = verify_result.single()
-
-                    if not verify_record or verify_record["count"] != 1:
-                        logger.error(
-                            f"create_extraction_rule: Verifikation fehlgeschlagen für '{relation_type}'. "
-                            f"Regel nicht in DB gefunden nach Commit."
-                        )
-                        return False
-
-                    if verify_record["pattern"] != regex_pattern:
-                        logger.error(
-                            f"create_extraction_rule: Verifikation zeigt falsches Pattern für '{relation_type}'"
-                        )
-                        return False
-
-                    # ERFOLG - Commit Transaktion
-                    tx.commit()
-
-                    action = (
-                        "aktualisiert"
-                        if record["created"] != record["updated"]
-                        else "erstellt"
-                    )
-                    logger.info(
-                        f"Extraktionsregel '{relation_type}' erfolgreich {action} und verifiziert. "
-                        f"Pattern: {regex_pattern[:50]}..."
-                    )
-
-                    # Invalidiere Cache nach Änderung
-                    cache_manager.invalidate("extraction_rules")
-                    logger.debug(
-                        "Extraktionsregeln-Cache invalidiert nach Regel-Änderung"
-                    )
-
-                    return True
-
-        except Exception as e:
-            logger.error(
-                f"create_extraction_rule: Kritischer Fehler bei '{relation_type}': {e}",
-                exc_info=True,
-            )
-            return False
-
-    def get_all_pattern_prototypes(
-        self, category: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Holt alle Pattern-Prototypen aus dem Graphen.
-
-        Args:
-            category: Optional - filtert nach dieser Kategorie
-
-        Returns:
-            Liste von Prototyp-Dictionaries
-        """
-        if not self.driver:
-            return []
-
-        with self.driver.session(database="neo4j") as session:
-            if category:
-                result = session.run(
-                    """
-                    MATCH (p:PatternPrototype {category: $cat})
-                    RETURN p.id AS id, p.centroid AS centroid, p.variance AS variance,
-                        p.count AS count, p.category AS category
-                    """,
-                    cat=category.upper(),
-                )
+        if not sanitized[0].isalpha() and sanitized[0] != "_":
+            # Try fixing: add underscore prefix if starts with digit
+            if sanitized[0].isdigit():
+                sanitized = "_" + sanitized[:62]
             else:
-                result = session.run(
-                    """
-                    MATCH (p:PatternPrototype)
-                    RETURN p.id AS id, p.centroid AS centroid, p.variance AS variance,
-                        p.count AS count, p.category AS category
-                    """
-                )
-            return [record.data() for record in result]
-
-    def create_pattern_prototype(
-        self, initial_vector: List[float], category: str
-    ) -> Optional[str]:
-        if not self.driver:
-            return None
-        initial_variance = [0.0] * len(initial_vector)
-        with self.driver.session(database="neo4j") as session:
-            result = session.run(
-                """
-                CREATE (p:PatternPrototype {
-                    id: randomUUID(),
-                    centroid: $vector,
-                    variance: $variance,
-                    count: 1,
-                    created_at: timestamp(),
-                    category: $category
-                })
-                RETURN p.id AS id
-                """,
-                vector=initial_vector,
-                variance=initial_variance,
-                category=category,
-            )
-            record = result.single()
-            return str(record["id"]) if record else None
-
-    def update_pattern_prototype(
-        self,
-        prototype_id: str,
-        new_centroid: List[float],
-        new_variance: List[float],
-        new_count: int,
-    ) -> bool:
-        """
-        Aktualisiert einen bestehenden Pattern-Prototyp.
-
-        FIX: Return-Type und Verifikation hinzugefügt (Code Review 2025-11-21, Concern 6)
-
-        Returns:
-            True wenn erfolgreich aktualisiert, False bei Fehler
-        """
-        if not self.driver:
-            logger.warning("update_pattern_prototype: Kein Driver verfügbar")
-            return False
-
-        with self.driver.session(database="neo4j") as session:
-            # SCHRITT 1: Update mit RETURN für Verifikation
-            result = session.run(
-                """
-                MATCH (p:PatternPrototype {id: $id})
-                SET p.centroid = $centroid,
-                    p.variance = $variance,
-                    p.count = $count,
-                    p.updated_at = timestamp()
-                RETURN p.id AS id, p.count AS updated_count
-                """,
-                id=prototype_id,
-                centroid=new_centroid,
-                variance=new_variance,
-                count=new_count,
-            )
-
-            # SCHRITT 2: Verifikation
-            record = result.single()
-            if not record:
-                logger.error(
-                    f"update_pattern_prototype: Prototype '{prototype_id}' nicht gefunden oder Update fehlgeschlagen"
-                )
-                return False
-
-            if record["updated_count"] != new_count:
-                logger.warning(
-                    f"update_pattern_prototype: Count-Mismatch für '{prototype_id}'. "
-                    f"Erwartet: {new_count}, Gesetzt: {record['updated_count']}"
+                raise ValueError(
+                    f"Invalid lemma (must start with letter or underscore): {lemma}"
                 )
 
-            logger.debug(
-                f"update_pattern_prototype: Prototype '{prototype_id}' erfolgreich aktualisiert"
+        if not ENTITY_NAME_REGEX.match(sanitized):
+            raise ValueError(
+                f"Invalid lemma (does not match entity name regex): {lemma}"
             )
-            return True
 
-    def link_prototype_to_rule(self, prototype_id: str, relation_type: str) -> bool:
-        if not self.driver:
-            return False
-        with self.driver.session(database="neo4j") as session:
-            result = session.run(
-                """
-                MATCH (p:PatternPrototype {id: $p_id})
-                MATCH (r:ExtractionRule {relation_type: $rel_type})
-                MERGE (p)-[t:TRIGGERS]->(r)
-                ON CREATE SET t.created_at = timestamp()
-                RETURN t
-                """,
-                p_id=prototype_id,
-                rel_type=relation_type,
-            )
-            # result.single() gibt den Trigger 't' zurück, wenn er erstellt wurde,
-            # oder None, wenn die MATCH-Klauseln scheiterten.
-            record = result.single()
-            if record is None:
-                logger.warning(
-                    f"Konnte Prototyp '{prototype_id}' nicht mit Regel '{relation_type}' verknüpfen, "
-                    "da einer der beiden Knoten nicht existiert."
-                )
-                return False
-            return True
+        return sanitized
 
-    def add_lexical_trigger(self, lemma: str, ensure_wort_callback) -> bool:
+    def create_pattern(
+        self, name: str, pattern_type: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Create Pattern node atomically with parameterized query."""
+        if not name or not name.strip():
+            raise ValueError("Pattern name cannot be empty")
+        if pattern_type not in VALID_PATTERN_TYPES:
+            raise ValueError(f"Pattern type must be one of {VALID_PATTERN_TYPES}")
+
+        pattern_id = str(uuid.uuid4())
+        query = """
+        CREATE (p:Pattern {
+            id: $id, name: $name, type: $type,
+            support: $support, precision: $precision,
+            createdAt: datetime(), lastMatched: $lastMatched
+        })
+        RETURN p.id AS id
         """
-        Markiert ein Wort als lexikalischen Trigger und gibt an, ob eine neue Verknüpfung erstellt wurde.
 
-        Args:
-            lemma: Das Lemma, das als Trigger markiert werden soll
-            ensure_wort_callback: Callback-Funktion um ensure_wort_und_konzept aufzurufen
-        """
-        if not self.driver:
-            return False
-        if not ensure_wort_callback(lemma):
-            return False
         try:
             with self.driver.session(database="neo4j") as session:
                 result = session.run(
-                    """
-                    MATCH (w:Wort {lemma: $lemma})
-                    MERGE (lex:Lexicon {name: 'triggers'})
-                    MERGE (lex)-[r:CONTAINS]->(w)
-                    RETURN r IS NOT NULL as success
-                    """,
-                    lemma=lemma.lower(),
+                    query,
+                    {
+                        "id": pattern_id,
+                        "name": name,
+                        "type": pattern_type,
+                        "support": 0,
+                        "precision": 0.5,
+                        "lastMatched": None,
+                    },
+                )
+                created_id = result.single()["id"]
+
+                verify_query = "MATCH (p:Pattern {id: $id}) RETURN p"
+                verification = session.run(verify_query, {"id": pattern_id})
+                if not verification.single():
+                    raise DatabaseException(f"Failed to create pattern: {pattern_id}")
+
+                logger.debug(f"Pattern created: {name} (type={pattern_type})")
+
+                # CRITICAL: Invalidate matcher cache to ensure new pattern appears in candidates
+                if self._pattern_matcher is not None:
+                    self._pattern_matcher._invalidate_candidate_cache()
+
+                return created_id
+        except Exception as e:
+            raise wrap_exception(
+                e, DatabaseException, "Failed to create pattern", name=name
+            )
+
+    def update_pattern_stats(
+        self, pattern_id: str, support_increment: int, new_precision: float
+    ):
+        """Update pattern statistics atomically."""
+        if not 0.0 <= new_precision <= 1.0:
+            raise ValueError(f"Precision must be 0.0-1.0, got: {new_precision}")
+        if support_increment < 0:
+            raise ValueError(f"Support increment must be non-negative")
+
+        query = """
+        MATCH (p:Pattern {id: $id})
+        SET p.support = p.support + $increment,
+            p.precision = $precision, p.lastMatched = datetime()
+        RETURN p.support AS support, p.precision AS precision
+        """
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(
+                    query,
+                    {
+                        "id": pattern_id,
+                        "increment": support_increment,
+                        "precision": new_precision,
+                    },
                 )
                 record = result.single()
-                return record["success"] if record else False
+                if record:
+                    logger.debug(
+                        f"Pattern stats updated: support={record['support']}, precision={record['precision']:.2f}"
+                    )
+
+                    # Invalidate matcher cache after stats update (precision affects ordering)
+                    if self._pattern_matcher is not None:
+                        self._pattern_matcher._invalidate_candidate_cache()
+                else:
+                    logger.warning(f"Pattern not found for stats update: {pattern_id}")
         except Exception as e:
-            logger.error(f"Fehler in add_lexical_trigger für '{lemma}': {e}")
-            return False
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to update pattern stats",
+                pattern_id=pattern_id,
+            )
 
-    def get_lexical_triggers(self) -> List[str]:
-        if not self.driver:
-            return []
-        with self.driver.session(database="neo4j") as session:
-            result = session.run(
-                """
-                MATCH (:Lexicon {name: 'triggers'})-[:CONTAINS]->(w:Wort)
-                RETURN w.lemma AS trigger
+    def get_all_patterns(
+        self, type_filter: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Retrieve patterns with optional type filter using composite index."""
+        if limit <= 0 or limit > 10000:
+            raise ValueError(f"Limit must be 1-10000, got: {limit}")
+        if type_filter and type_filter not in VALID_PATTERN_TYPES:
+            raise ValueError(f"Invalid type filter: {type_filter}")
+
+        if type_filter:
+            query = """
+            MATCH (p:Pattern) WHERE p.type = $type
+            RETURN p ORDER BY p.precision DESC, p.support DESC LIMIT $limit
             """
+            params = {"type": type_filter, "limit": limit}
+        else:
+            query = """
+            MATCH (p:Pattern)
+            RETURN p ORDER BY p.precision DESC, p.support DESC LIMIT $limit
+            """
+            params = {"limit": limit}
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(query, params)
+                patterns = [dict(record["p"]) for record in result]
+                logger.debug(
+                    f"Retrieved {len(patterns)} patterns",
+                    extra={"type_filter": type_filter},
+                )
+                return patterns
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to retrieve patterns",
+                type_filter=type_filter,
             )
-            return [record["trigger"] for record in result]
 
-    def get_rule_for_prototype(self, prototype_id: str) -> Optional[Dict[str, str]]:
+    def batch_create_pattern_items(
+        self, pattern_id: str, items: List[Dict[str, Any]]
+    ) -> int:
+        """Create multiple PatternItems using UNWIND batch operation."""
+        if not items:
+            return 0
+
+        for item in items:
+            if "id" not in item or "idx" not in item or "kind" not in item:
+                raise ValueError("Each item must have 'id', 'idx', and 'kind' fields")
+            if item["kind"] not in VALID_ITEM_KINDS:
+                raise ValueError(f"Invalid item kind: {item['kind']}")
+            if item["kind"] == "LITERAL" and "literalValue" not in item:
+                raise ValueError("LITERAL items must have 'literalValue' field")
+            if item["kind"] == "SLOT" and "slotId" not in item:
+                raise ValueError("SLOT items must have 'slotId' field")
+
+        query = """
+        MATCH (p:Pattern {id: $pattern_id})
+        UNWIND $items AS item
+        CREATE (pi:PatternItem {id: item.id, idx: item.idx, kind: item.kind})
+        CREATE (p)-[:HAS_ITEM {idx: item.idx}]->(pi)
+        WITH pi, item
+        FOREACH (_ IN CASE WHEN item.kind = 'LITERAL' THEN [1] ELSE [] END |
+            SET pi.literalValue = item.literalValue
+        )
+        WITH pi, item
+        FOREACH (_ IN CASE WHEN item.kind = 'SLOT' THEN [1] ELSE [] END |
+            MERGE (s:Slot {id: item.slotId})
+        )
+        WITH pi, item
+        OPTIONAL MATCH (s:Slot {id: item.slotId})
+        WHERE item.kind = 'SLOT'
+        FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END |
+            CREATE (pi)-[:USES_SLOT]->(s)
+        )
+        RETURN count(DISTINCT pi) AS created_count
         """
-        NEU: Findet die Extraktionsregel, die von einem bestimmten Prototypen
-        ausgelöst wird. Dies ist die entscheidende Brücke für die Ingestion.
-        """
-        if not self.driver:
-            return None
-        with self.driver.session(database="neo4j") as session:
-            result = session.run(
-                """
-                MATCH (:PatternPrototype {id: $p_id})-[:TRIGGERS]->(r:ExtractionRule)
-                RETURN r.relation_type as relation_type, r.regex_pattern as regex_pattern
-                LIMIT 1
-                """,
-                p_id=prototype_id,
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                with session.begin_transaction() as tx:
+                    try:
+                        result = tx.run(
+                            query, {"pattern_id": pattern_id, "items": items}
+                        )
+                        count = result.single()["created_count"]
+                        tx.commit()
+                        logger.debug(f"Batch created {count} pattern items")
+                        return count
+                    except Exception as inner_e:
+                        tx.rollback()
+                        raise inner_e
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to batch create pattern items",
+                pattern_id=pattern_id,
+                item_count=len(items),
             )
-            record = result.single()
-            return record.data() if record else None
 
-    def get_all_extraction_rules(self) -> List[Dict[str, str]]:
+    def create_slot(
+        self,
+        slot_type: str,
+        allowed_values: Optional[List[str]] = None,
+        min_count: int = 1,
+        max_count: int = 1,
+    ) -> str:
+        """Create Slot node with initial allowed values using UNWIND."""
+        if not slot_type or not slot_type.strip():
+            raise ValueError("Slot type cannot be empty")
+        if min_count < 1:
+            raise ValueError(f"Min count must be >= 1, got: {min_count}")
+        if max_count < -1 or max_count == 0:
+            raise ValueError(f"Max count must be -1 (unbounded) or >= 1")
+        if max_count > 0 and min_count > max_count:
+            raise ValueError(f"Min count cannot exceed max count")
+
+        slot_id = str(uuid.uuid4())
+
+        if not allowed_values:
+            query = """
+            CREATE (s:Slot {id: $id, slotType: $type, minCount: $min_count, maxCount: $max_count})
+            RETURN s.id AS id
+            """
+            params = {
+                "id": slot_id,
+                "type": slot_type,
+                "min_count": min_count,
+                "max_count": max_count,
+            }
+        else:
+            # SECURITY: Validate and sanitize all allowed values
+            sanitized_allowed = [self._validate_lemma(v) for v in allowed_values]
+
+            query = """
+            CREATE (s:Slot {id: $id, slotType: $type, minCount: $min_count, maxCount: $max_count})
+            WITH s
+            UNWIND $allowed AS lemma
+            MERGE (al:AllowedLemma {lemma: lemma})
+            CREATE (s)-[:ALLOWS {count: 1}]->(al)
+            RETURN s.id AS id
+            """
+            params = {
+                "id": slot_id,
+                "type": slot_type,
+                "min_count": min_count,
+                "max_count": max_count,
+                "allowed": sanitized_allowed,
+            }
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                with session.begin_transaction() as tx:
+                    try:
+                        result = tx.run(query, params)
+                        created_id = result.single()["id"]
+                        tx.commit()
+                        logger.debug(
+                            f"Slot created: {slot_type} (allowed_values={len(allowed_values) if allowed_values else 0})"
+                        )
+                        return created_id
+                    except Exception as inner_e:
+                        tx.rollback()
+                        raise inner_e
+        except Exception as e:
+            raise wrap_exception(
+                e, DatabaseException, "Failed to create slot", slot_type=slot_type
+            )
+
+    def update_slot_allowed(self, slot_id: str, lemma: str, count_increment: int = 1):
+        """Update or create ALLOWS relationship with count using MERGE."""
+        if not lemma or not lemma.strip():
+            raise ValueError("Lemma cannot be empty")
+        if count_increment < 1:
+            raise ValueError(f"Count increment must be >= 1")
+
+        # SECURITY: Validate and sanitize lemma before database operation
+        sanitized_lemma = self._validate_lemma(lemma)
+
+        query = """
+        MATCH (s:Slot {id: $slot_id})
+        MERGE (al:AllowedLemma {lemma: $lemma})
+        MERGE (s)-[r:ALLOWS]->(al)
+        ON CREATE SET r.count = $increment
+        ON MATCH SET r.count = r.count + $increment
+        RETURN r.count AS new_count
         """
-        Holt alle Extraktionsregeln aus dem Graphen.
 
-        Performance-Optimierung: Nutzt TTL-Cache (10 Minuten) da Extraktionsregeln
-        selten ändern, aber häufig abgerufen werden (bei jedem Text-Ingestion).
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(
+                    query,
+                    {
+                        "slot_id": slot_id,
+                        "lemma": sanitized_lemma,
+                        "increment": count_increment,
+                    },
+                )
+                record = result.single()
+                if record:
+                    logger.debug(
+                        f"Slot allowed updated: {lemma} (count={record['new_count']})"
+                    )
+                else:
+                    logger.warning(f"Slot not found for allowed update: {slot_id}")
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to update slot allowed",
+                slot_id=slot_id,
+                lemma=lemma,
+            )
+
+    def match_utterance_to_pattern(
+        self, utterance_id: str, pattern_id: str, score: float
+    ):
+        """Record MATCHED relationship between Utterance and Pattern."""
+        if not 0.0 <= score <= 1.0:
+            raise ValueError(f"Score must be 0.0-1.0, got: {score}")
+
+        query = """
+        MATCH (u:Utterance {id: $utterance_id})
+        MATCH (p:Pattern {id: $pattern_id})
+        CREATE (u)-[:MATCHED {score: $score, timestamp: datetime()}]->(p)
+        """
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                session.run(
+                    query,
+                    {
+                        "utterance_id": utterance_id,
+                        "pattern_id": pattern_id,
+                        "score": score,
+                    },
+                )
+                logger.debug(
+                    f"Match recorded: utterance {utterance_id[:8]}... -> pattern {pattern_id[:8]}... (score={score:.2f})"
+                )
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to match utterance to pattern",
+                utterance_id=utterance_id,
+                pattern_id=pattern_id,
+            )
+
+    def update_pattern_centroid(self, pattern_id: str, centroid: List[float]):
+        """
+        Update pattern embedding centroid.
+
+        The centroid is the normalized average embedding of all matched utterances.
+        Used for semantic similarity scoring in hybrid pattern matching.
+
+        Args:
+            pattern_id: Pattern UUID
+            centroid: 384-dimensional normalized embedding vector
+
+        Raises:
+            ValueError: If centroid is invalid
+            DatabaseException: If database operation fails
+
+        Example:
+            >>> centroid = [0.1, 0.2, ...]  # 384D normalized vector
+            >>> manager.update_pattern_centroid(pattern_id, centroid)
+        """
+        if not centroid or len(centroid) != 384:
+            raise ValueError(
+                f"Centroid must be 384-dimensional, got: {len(centroid) if centroid else 0}"
+            )
+
+        # Verify normalization (should be close to 1.0)
+        import numpy as np
+
+        norm = np.linalg.norm(centroid)
+        if not 0.95 <= norm <= 1.05:
+            logger.warning(f"Centroid norm {norm:.3f} not normalized, normalizing...")
+            if norm > 0:
+                centroid = (np.array(centroid) / norm).tolist()
+
+        query = """
+        MATCH (p:Pattern {id: $pattern_id})
+        SET p.centroid = $centroid
+        RETURN p.id AS id
+        """
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(
+                    query, {"pattern_id": pattern_id, "centroid": centroid}
+                )
+                record = result.single()
+                if record:
+                    logger.debug(f"Pattern centroid updated: {pattern_id[:8]}")
+                else:
+                    logger.warning(
+                        f"Pattern not found for centroid update: {pattern_id[:8]}"
+                    )
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to update pattern centroid",
+                pattern_id=pattern_id,
+            )
+
+    def get_pattern(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve single pattern with all properties.
+
+        Args:
+            pattern_id: Pattern UUID
 
         Returns:
-            Liste von Regel-Dictionaries mit relation_type und regex_pattern
+            Pattern dict with all properties or None if not found
+
+        Raises:
+            DatabaseException: If database operation fails
+
+        Example:
+            >>> pattern = manager.get_pattern(pattern_id)
+            >>> if pattern:
+            ...     print(f"Pattern: {pattern['name']}, Precision: {pattern['precision']}")
         """
-        if not self.driver:
-            return []
+        query = """
+        MATCH (p:Pattern {id: $pattern_id})
+        RETURN p
+        """
 
-        # Cache-Key
-        cache_key = "all_extraction_rules"
-
-        # Prüfe Cache
-        cached_rules = cache_manager.get("extraction_rules", cache_key)
-        if cached_rules is not None:
-            logger.debug("Cache-Hit für get_all_extraction_rules")
-            return cached_rules
-
-        with self.driver.session(database="neo4j") as session:
-            result = session.run(
-                "MATCH (r:ExtractionRule) RETURN r.relation_type AS relation_type, r.regex_pattern AS regex_pattern"
-            )
-            rules = [record.data() for record in result]
-
-            # In Cache speichern
-            cache_manager.set("extraction_rules", cache_key, rules)
-            logger.debug(
-                "Cache-Miss für get_all_extraction_rules",
-                extra={"rule_count": len(rules)},
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(query, {"pattern_id": pattern_id})
+                record = result.single()
+                return dict(record["p"]) if record else None
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to retrieve pattern",
+                pattern_id=pattern_id,
             )
 
-            return rules
+    def get_pattern_items(self, pattern_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve pattern items ordered by index.
+
+        Returns items with their properties including:
+        - id: PatternItem UUID
+        - idx: Position in pattern
+        - kind: "LITERAL" or "SLOT"
+        - literalValue: For LITERAL items
+        - slotId: For SLOT items
+
+        Args:
+            pattern_id: Pattern UUID
+
+        Returns:
+            List of PatternItem dicts in sequence order
+
+        Raises:
+            DatabaseException: If database operation fails
+
+        Example:
+            >>> items = manager.get_pattern_items(pattern_id)
+            >>> for item in items:
+            ...     if item['kind'] == 'LITERAL':
+            ...         print(f"Literal: {item['literalValue']}")
+            ...     else:
+            ...         print(f"Slot: {item['slotId']}")
+        """
+        query = """
+        MATCH (p:Pattern {id: $pattern_id})-[r:HAS_ITEM]->(pi:PatternItem)
+        OPTIONAL MATCH (pi)-[:USES_SLOT]->(s:Slot)
+        RETURN pi, s.id AS slotId
+        ORDER BY r.idx
+        """
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(query, {"pattern_id": pattern_id})
+                items = []
+                for record in result:
+                    item = dict(record["pi"])
+                    if record["slotId"]:
+                        item["slotId"] = record["slotId"]
+                    items.append(item)
+                return items
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to retrieve pattern items",
+                pattern_id=pattern_id,
+            )
+
+    def create_pattern_item(
+        self,
+        pattern_id: str,
+        idx: int,
+        kind: str,
+        literal_value: Optional[str] = None,
+        slot_id: Optional[str] = None,
+    ) -> str:
+        """
+        Create single PatternItem with HAS_ITEM relationship.
+
+        This is a convenience method for creating individual items.
+        For bulk creation, use batch_create_pattern_items() instead.
+
+        Args:
+            pattern_id: Pattern UUID
+            idx: Position in pattern sequence
+            kind: "LITERAL" or "SLOT"
+            literal_value: Required for LITERAL kind
+            slot_id: Required for SLOT kind
+
+        Returns:
+            PatternItem ID (UUID)
+
+        Raises:
+            ValueError: If validation fails
+            DatabaseException: If database operation fails
+
+        Example:
+            >>> # Create literal item
+            >>> item_id = manager.create_pattern_item(
+            ...     pattern_id, idx=0, kind="LITERAL", literal_value="was"
+            ... )
+            >>> # Create slot item
+            >>> slot_id = manager.create_slot("WH_WORD", ["was", "wer"])
+            >>> item_id = manager.create_pattern_item(
+            ...     pattern_id, idx=1, kind="SLOT", slot_id=slot_id
+            ... )
+        """
+        if kind not in VALID_ITEM_KINDS:
+            raise ValueError(f"Kind must be one of {VALID_ITEM_KINDS}")
+        if kind == "LITERAL" and not literal_value:
+            raise ValueError("LITERAL items require literal_value")
+        if kind == "SLOT" and not slot_id:
+            raise ValueError("SLOT items require slot_id")
+        if idx < 0:
+            raise ValueError("Index must be non-negative")
+
+        item_id = str(uuid.uuid4())
+
+        if kind == "LITERAL":
+            query = """
+            MATCH (p:Pattern {id: $pattern_id})
+            CREATE (pi:PatternItem {id: $item_id, idx: $idx, kind: $kind, literalValue: $literal_value})
+            CREATE (p)-[:HAS_ITEM {idx: $idx}]->(pi)
+            RETURN pi.id AS id
+            """
+            params = {
+                "pattern_id": pattern_id,
+                "item_id": item_id,
+                "idx": idx,
+                "kind": kind,
+                "literal_value": literal_value,
+            }
+        else:  # SLOT
+            query = """
+            MATCH (p:Pattern {id: $pattern_id})
+            MATCH (s:Slot {id: $slot_id})
+            CREATE (pi:PatternItem {id: $item_id, idx: $idx, kind: $kind})
+            CREATE (p)-[:HAS_ITEM {idx: $idx}]->(pi)
+            CREATE (pi)-[:USES_SLOT]->(s)
+            RETURN pi.id AS id
+            """
+            params = {
+                "pattern_id": pattern_id,
+                "item_id": item_id,
+                "idx": idx,
+                "kind": kind,
+                "slot_id": slot_id,
+            }
+
+        try:
+            with self.driver.session(database="neo4j") as session:
+                result = session.run(query, params)
+                created_id = result.single()["id"]
+                logger.debug(f"PatternItem created: {kind} at idx={idx}")
+                return created_id
+        except Exception as e:
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to create pattern item",
+                pattern_id=pattern_id,
+                kind=kind,
+                idx=idx,
+            )

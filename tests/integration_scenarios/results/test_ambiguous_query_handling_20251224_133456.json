@@ -1,0 +1,26 @@
+{
+  "scenario": "test_ambiguous_query_handling",
+  "timestamp": "2025-12-24T13:34:55.954598",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T13:34:55.955253",
+    "input_text": "\nWie schwer ist das?\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T13:34:56.053042",
+    "response": "KaiResponse(text=\"Ich konnte den Schritt 'Identifiziere das Thema der Frage.' nicht ausführen.\", trace=[], answer_id=None, confidence=None, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.0
+  },
+  "metadata": {
+    "scenario_name": "test_ambiguous_query_handling",
+    "start_time": "2025-12-24T13:34:55.954598",
+    "end_time": "2025-12-24T13:34:56.053045"
+  }
+}

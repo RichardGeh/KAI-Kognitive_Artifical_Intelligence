@@ -1,0 +1,304 @@
+# seed_templates.yml
+# Seed templates for pattern discovery bootstrap
+# These templates represent "2-3 years of linguistic knowledge"
+# and provide the initial patterns for the pattern learning system.
+#
+# Encoding: UTF-8 (CRITICAL for Windows cp1252 compatibility)
+# Format: YAML with templates list
+#
+# Part of Pattern Discovery System - Part 2
+
+templates:
+  # ========================================================================
+  # QUESTIONS (8 templates)
+  # ========================================================================
+
+  - id: "seed_question_wh_simple"
+    name: "Simple WH-Question"
+    category: "Question"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "WH_WORD"
+        allowed: ["was", "wer", "wie", "wo", "wann", "warum", "welche"]
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["ist", "sind", "hat", "kann", "macht"]
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []  # Learned through experience
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_property"
+    name: "Property Question"
+    category: "Question"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "WH_WORD"
+        allowed: ["was", "welche"]
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "SLOT"
+        slot_type: "ARTICLE"
+        allowed: ["die", "der", "das", "ein", "eine"]
+      - kind: "SLOT"
+        slot_type: "PROPERTY"
+        allowed: ["farbe", "groesse", "eigenschaft"]
+      - kind: "LITERAL"
+        value: "von"
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_yesno"
+    name: "Yes/No Question"
+    category: "Question"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["kann", "ist", "hat", "macht"]
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "SLOT"
+        slot_type: "PREDICATE"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_wer_macht"
+    name: "Who Does What"
+    category: "Question"
+    pattern:
+      - kind: "LITERAL"
+        value: "wer"
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["macht", "kann", "hat", "ist"]
+      - kind: "SLOT"
+        slot_type: "ACTION"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_wo_ist"
+    name: "Where Is"
+    category: "Question"
+    pattern:
+      - kind: "LITERAL"
+        value: "wo"
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_wie_viele"
+    name: "How Many"
+    category: "Question"
+    pattern:
+      - kind: "LITERAL"
+        value: "wie"
+      - kind: "LITERAL"
+        value: "viele"
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["gibt", "sind", "hat"]
+      - kind: "SLOT"
+        slot_type: "LOCATION"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_warum"
+    name: "Why Question"
+    category: "Question"
+    pattern:
+      - kind: "LITERAL"
+        value: "warum"
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["ist", "kann", "macht"]
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "SLOT"
+        slot_type: "PREDICATE"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  - id: "seed_question_wann"
+    name: "When Question"
+    category: "Question"
+    pattern:
+      - kind: "LITERAL"
+        value: "wann"
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["ist", "war", "wird"]
+      - kind: "SLOT"
+        slot_type: "EVENT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "?"
+
+  # ========================================================================
+  # STATEMENTS (7 templates)
+  # ========================================================================
+
+  - id: "seed_definition_is_a"
+    name: "IS_A Definition"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "SLOT"
+        slot_type: "ARTICLE"
+        allowed: ["ein", "eine", "der", "die", "das"]
+      - kind: "SLOT"
+        slot_type: "CATEGORY"
+        allowed: []
+
+  - id: "seed_property_has"
+    name: "HAS_PROPERTY"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "SLOT"
+        slot_type: "ADJECTIVE"
+        allowed: []
+
+  - id: "seed_capability"
+    name: "CAPABLE_OF"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "kann"
+      - kind: "SLOT"
+        slot_type: "ACTION"
+        allowed: []
+
+  - id: "seed_negation"
+    name: "Negation"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["kann", "ist", "hat"]
+      - kind: "LITERAL"
+        value: "nicht"
+      - kind: "SLOT"
+        slot_type: "PREDICATE"
+        allowed: []
+
+  - id: "seed_location"
+    name: "LOCATED_IN"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "LITERAL"
+        value: "in"
+      - kind: "SLOT"
+        slot_type: "LOCATION"
+        allowed: []
+
+  - id: "seed_part_of"
+    name: "PART_OF"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "PART"
+        allowed: []
+      - kind: "LITERAL"
+        value: "ist"
+      - kind: "LITERAL"
+        value: "ein"
+      - kind: "LITERAL"
+        value: "teil"
+      - kind: "LITERAL"
+        value: "von"
+      - kind: "SLOT"
+        slot_type: "WHOLE"
+        allowed: []
+
+  - id: "seed_causation"
+    name: "Causation"
+    category: "Statement"
+    pattern:
+      - kind: "SLOT"
+        slot_type: "CAUSE"
+        allowed: []
+      - kind: "SLOT"
+        slot_type: "VERB"
+        allowed: ["fuehrt", "macht", "bewirkt"]
+      - kind: "LITERAL"
+        value: "zu"
+      - kind: "SLOT"
+        slot_type: "EFFECT"
+        allowed: []
+
+  # ========================================================================
+  # COMMANDS (3 templates)
+  # ========================================================================
+
+  - id: "seed_command_learn"
+    name: "Learn Command"
+    category: "Command"
+    pattern:
+      - kind: "LITERAL"
+        value: "lerne"
+      - kind: "LITERAL"
+        value: ":"
+      - kind: "SLOT"
+        slot_type: "FACT"
+        allowed: []
+
+  - id: "seed_command_show"
+    name: "Show Command"
+    category: "Command"
+    pattern:
+      - kind: "LITERAL"
+        value: "zeige"
+      - kind: "SLOT"
+        slot_type: "QUANTIFIER"
+        allowed: ["alles", "alle", "mehr"]
+      - kind: "LITERAL"
+        value: "ueber"
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []
+
+  - id: "seed_command_explain"
+    name: "Explain Command"
+    category: "Command"
+    pattern:
+      - kind: "LITERAL"
+        value: "erklaere"
+      - kind: "SLOT"
+        slot_type: "SUBJECT"
+        allowed: []

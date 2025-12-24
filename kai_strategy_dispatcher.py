@@ -19,10 +19,12 @@ Architecture:
 """
 
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
 from component_1_netzwerk import KonzeptNetzwerk
+from kai_exceptions import ConstraintReasoningError, ParsingError
 
 logger = logging.getLogger(__name__)
 
@@ -988,6 +990,266 @@ class StrategyDispatcher:
             logger.warning(f"[Constraint Solving] Fehler: {e}")
             return None
 
+    def _is_zebra_puzzle(self, query_text: str) -> bool:
+        """
+        Detect if query is a Zebra-style puzzle.
+
+        Supports three formats:
+        1. Ordering Puzzle: Transitive comparison (A > B > C)
+        2. Classic Zebra: 5 entities, nationality/color/drink/pet/cigarette categories,
+           positional constraints ("erstes Haus", "links vom")
+        3. Multi-attribute: Namen:, Berufe:, Staedte:, etc. with assignment constraints
+
+        Args:
+            query_text: Full puzzle text
+
+        Returns:
+            True if this looks like a Zebra puzzle (any format)
+        """
+        text_lower = query_text.lower()
+
+        # Strong indicators for Zebra puzzle
+        zebra_indicators = 0
+
+        # ========================================
+        # Check for ORDERING PUZZLE format first (highest priority)
+        # ========================================
+        ordering_patterns = [
+            r"\bist\s+(?:groesser|kleiner|schneller|langsamer|aelter|juenger|schwerer|leichter)\s+als\b",
+        ]
+        ordering_matches = sum(
+            len(re.findall(p, text_lower)) for p in ordering_patterns
+        )
+
+        # Check for superlative questions (groesste, kleinste, etc.)
+        superlative_patterns = [
+            r"(?:groesste|kleinste|schnellste|langsamste|aelteste|juengste)",
+        ]
+        superlative_matches = sum(
+            1 for p in superlative_patterns if re.search(p, text_lower)
+        )
+
+        # Check for order/ranking questions
+        order_patterns = [
+            r"reihenfolge",
+            r"unterschiedliche\s+(?:koerpergroessen|groessen|alter)",
+        ]
+        order_matches = sum(1 for p in order_patterns if re.search(p, text_lower))
+
+        # Ordering puzzle: 3+ comparisons OR (1+ comparison AND superlative/order question)
+        if ordering_matches >= 3 or (
+            ordering_matches >= 1 and (superlative_matches >= 1 or order_matches >= 1)
+        ):
+            logger.info(
+                f"[Zebra Detection] Detected ORDERING puzzle format: "
+                f"{ordering_matches} comparisons, {superlative_matches} superlatives"
+            )
+            return True  # Early return for ordering puzzle format
+
+        # ========================================
+        # Check for MULTI-ATTRIBUTE format second
+        # ========================================
+        multi_attr_patterns = [
+            r"namen\s*:\s*\w+",
+            r"berufe?\s*:\s*\w+",
+            r"staedte\s*:\s*\w+",
+            r"haustiere?\s*:\s*\w+",
+            r"hobbys?\s*:\s*\w+",
+        ]
+        multi_attr_matches = sum(
+            1 for p in multi_attr_patterns if re.search(p, text_lower)
+        )
+
+        if multi_attr_matches >= 3:
+            # This is a multi-attribute puzzle - strong indicator
+            zebra_indicators += 4
+            logger.info(
+                f"[Zebra Detection] Detected MULTI-ATTRIBUTE puzzle format: "
+                f"{multi_attr_matches} category declarations found"
+            )
+            return True  # Early return for multi-attribute format
+
+        # ========================================
+        # Check for CLASSIC ZEBRA format
+        # ========================================
+
+        # Check for multiple categories (classic Zebra)
+        category_patterns = [
+            r"\b(?:nationalitaet|nationalität)\b",
+            r"\b(?:haeuser|häuser|haus)\s+(?:farbe|farben)\b",
+            r"\b(?:haustier|haustiere|pet)\b",
+            r"\b(?:getraenk|getränk|trinkt)\b",
+            r"\b(?:raucht|zigarette|zigaretten)\b",
+        ]
+        categories_found = sum(1 for p in category_patterns if re.search(p, text_lower))
+        if categories_found >= 3:
+            zebra_indicators += 2
+
+        # Check for 5 houses/entities
+        if re.search(
+            r"\b(?:fuenf|fünf|5)\s+(?:haeuser|häuser|personen|leute)\b", text_lower
+        ):
+            zebra_indicators += 2
+
+        # Check for positional constraints
+        positional_patterns = [
+            r"erstes?\s+haus",
+            r"mittleren?\s+haus",
+            r"letztes?\s+haus",
+            r"direkt\s+links\s+vom?",
+            r"direkt\s+rechts\s+vom?",
+            r"lebt\s+neben",
+            r"nachbar",
+        ]
+        positional_found = sum(
+            1 for p in positional_patterns if re.search(p, text_lower)
+        )
+        if positional_found >= 2:
+            zebra_indicators += 2
+
+        # Check for "Zebra" question specifically
+        if re.search(
+            r"\b(?:zebra|wasser)\b.*\bwer\b|\bwer\b.*\b(?:zebra|wasser)\b", text_lower
+        ):
+            zebra_indicators += 1
+
+        # Check for numbered hints (1. 2. 3. ... pattern)
+        hint_count = len(re.findall(r"^\s*\d{1,2}\.\s+", query_text, re.MULTILINE))
+        if hint_count >= 10:
+            zebra_indicators += 2
+
+        # Threshold: 4+ indicators suggests Zebra puzzle
+        is_zebra = zebra_indicators >= 4
+
+        if is_zebra:
+            logger.info(
+                f"[Zebra Detection] Detected CLASSIC Zebra puzzle (score={zebra_indicators}): "
+                f"{categories_found} categories, {positional_found} positional constraints, "
+                f"{hint_count} numbered hints"
+            )
+
+        return is_zebra
+
+    def _try_zebra_puzzle_solving(
+        self,
+        query_text: str,
+        topic: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Optional:
+        """
+        Try solving as Zebra (Einstein) puzzle using CSP solver.
+
+        Zebra puzzles have:
+        - 5 entities (houses/people)
+        - 5 categories (nationality, color, drink, pet, cigarette)
+        - 15+ constraints
+
+        Uses component_45_zebra_puzzle_solver with CSP backend.
+
+        Args:
+            query_text: Full puzzle text
+            topic: Extracted topic/subject
+            context: Optional context dict
+
+        Returns:
+            ReasoningResult or None
+        """
+        logger.info(f"[Zebra Puzzle] Attempting to solve: '{query_text[:60]}...'")
+
+        # Lazy load Zebra solver
+        if not hasattr(self, "zebra_puzzle_solver"):
+            from component_45_zebra_puzzle_solver import ZebraPuzzleSolver
+
+            self.zebra_puzzle_solver = ZebraPuzzleSolver()
+
+        try:
+            # Extract question from text (usually at the end)
+            question = None
+            question_match = re.search(
+                r"(?:frage|question):\s*(.+?)(?:\n|$)",
+                query_text,
+                re.IGNORECASE,
+            )
+            if question_match:
+                question = question_match.group(1).strip()
+            else:
+                # Try to find question mark sentence
+                sentences = query_text.split("?")
+                if len(sentences) > 1:
+                    question = sentences[-2].split(".")[-1].strip() + "?"
+
+            # Solve using Zebra solver
+            solution = self.zebra_puzzle_solver.solve_from_text(query_text, question)
+
+            if not solution:
+                logger.warning("[Zebra Puzzle] Solver returned None")
+                return None
+
+            if solution.get("result") == "PARSE_ERROR":
+                logger.warning(
+                    "[Zebra Puzzle] Parse error - falling back to regular logic puzzle"
+                )
+                return None
+
+            if solution.get("result") == "UNSATISFIABLE":
+                logger.warning("[Zebra Puzzle] Puzzle is UNSATISFIABLE")
+                answer = solution.get("answer", "Das Raetsel hat keine Loesung.")
+                return self.ReasoningResult(
+                    strategy=self.ReasoningStrategy.LOGIC_PUZZLE,
+                    success=False,
+                    confidence=0.0,
+                    inferred_facts={"ERROR": [answer]},
+                    proof_tree=solution.get("proof_tree"),
+                    proof_trace=f"UNSATISFIABLE: {answer}",
+                    metadata={
+                        "puzzle_type": "zebra_csp",
+                        "error_type": "UNSAT",
+                    },
+                )
+
+            # Success!
+            answer_text = solution.get("answer", "")
+            confidence = solution.get("confidence", 1.0)
+            proof_tree = solution.get("proof_tree")
+
+            logger.info(f"[Zebra Puzzle] [OK] Solution found: {answer_text[:100]}...")
+
+            # Track in working memory
+            self.working_memory.add_reasoning_state(
+                step_type="zebra_puzzle_solved",
+                description=f"Zebra-Raetsel geloest mit CSP",
+                data={
+                    "answer": answer_text,
+                    "puzzle_type": "zebra_csp",
+                    "confidence": confidence,
+                },
+                confidence=confidence,
+            )
+
+            return self.ReasoningResult(
+                strategy=self.ReasoningStrategy.LOGIC_PUZZLE,
+                success=True,
+                confidence=confidence,
+                inferred_facts={"PUZZLE_SOLUTION": [answer_text]},
+                proof_tree=proof_tree,
+                proof_trace=f"Zebra-Raetsel geloest: {answer_text}",
+                metadata={
+                    "puzzle_type": "zebra_csp",
+                    "num_variables": solution.get("metadata", {}).get(
+                        "num_variables", 0
+                    ),
+                    "num_constraints": solution.get("metadata", {}).get(
+                        "num_constraints", 0
+                    ),
+                    "backtracks": solution.get("metadata", {}).get("backtracks", 0),
+                },
+            )
+
+        except Exception as e:
+            logger.error(f"[Zebra Puzzle] Error: {e}", exc_info=True)
+            # Fall back to regular logic puzzle solver
+            return None
+
     def _try_logic_puzzle_solving(
         self,
         query_text: str,
@@ -999,6 +1261,7 @@ class StrategyDispatcher:
         Try solving as logic puzzle (entity-based SAT or numerical CSP).
 
         Detects puzzle type and routes to appropriate solver:
+        - ZEBRA: 5-entity puzzles with 15+ constraints -> CSP solver
         - ENTITY_SAT: Leo/Mark/Nick puzzles -> SAT solver
         - NUMERICAL_CSP: "gesuchte Zahl" puzzles -> CSP solver
 
@@ -1014,6 +1277,14 @@ class StrategyDispatcher:
             ReasoningResult or None
         """
         logger.info(f"[Logic Puzzle] Attempting to solve: '{query_text[:60]}...'")
+
+        # STEP 0: Check for Zebra puzzle first (15+ constraint puzzles)
+        if self._is_zebra_puzzle(query_text):
+            zebra_result = self._try_zebra_puzzle_solving(query_text, topic, context)
+            if zebra_result is not None:
+                return zebra_result
+            # If Zebra solver failed, continue to regular logic puzzle solver
+            logger.info("[Logic Puzzle] Zebra solver failed, trying regular solver")
 
         # Lazy load solver
         if not hasattr(self, "logic_puzzle_solver"):
@@ -1062,8 +1333,42 @@ class StrategyDispatcher:
                 question=query_text,  # Keep original question for answer formatting
             )
 
-            if not solution or solution.get("result") != "SATISFIABLE":
-                logger.info("[Logic Puzzle] No satisfiable solution found")
+            if not solution:
+                logger.error("[Logic Puzzle] Solver returned None - unexpected")
+                return None
+
+            # Handle UNSATISFIABLE puzzles (contradictory constraints)
+            if solution.get("result") == "UNSATISFIABLE":
+                logger.warning(
+                    "[Logic Puzzle] Puzzle is UNSATISFIABLE (contradictory constraints)"
+                )
+                # Return structured error result with diagnostic info
+                diagnostic = solution.get("diagnostic", {})
+                answer = solution.get(
+                    "answer",
+                    "Das Rätsel hat keine Lösung (Widerspruch in den Bedingungen).",
+                )
+
+                return self.ReasoningResult(
+                    strategy=self.ReasoningStrategy.LOGIC_PUZZLE,
+                    success=False,
+                    confidence=0.0,
+                    inferred_facts={"ERROR": [answer]},
+                    proof_tree=None,
+                    proof_trace=f"UNSATISFIABLE: {answer}",
+                    metadata={
+                        "puzzle_type": solution.get("puzzle_type", "UNKNOWN"),
+                        "error_type": "UNSAT",
+                        "diagnostic": diagnostic,
+                        "is_expected_failure": True,
+                    },
+                )
+
+            # Handle other non-SATISFIABLE results
+            if solution.get("result") != "SATISFIABLE":
+                logger.warning(
+                    f"[Logic Puzzle] Unexpected result: {solution.get('result')}"
+                )
                 return None
 
             # STEP 4: Extract solution details
@@ -1151,9 +1456,52 @@ class StrategyDispatcher:
                 },
             )
 
+        except ParsingError as e:
+            # Parsing error - likely indicates a bug in parser or entity extraction
+            # These should propagate to fail tests and reveal root cause
+            logger.error(
+                f"[Logic Puzzle] PARSING ERROR (likely bug): {e}", exc_info=True
+            )
+            # Propagate to make bugs visible in tests
+            raise
+        except ConstraintReasoningError as e:
+            # Constraint reasoning error - could be UNSAT or solver bug
+            # Check error message/context to determine
+            error_msg = str(e)
+            is_unsat = (
+                "UNSAT" in error_msg or "no satisfying assignment" in error_msg.lower()
+            )
+
+            if is_unsat:
+                # Expected UNSAT result - return graceful error
+                logger.warning(f"[Logic Puzzle] Puzzle is UNSATISFIABLE: {e}")
+                return self.ReasoningResult(
+                    strategy=self.ReasoningStrategy.LOGIC_PUZZLE,
+                    success=False,
+                    confidence=0.0,
+                    inferred_facts={},
+                    proof_tree=None,
+                    proof_trace=f"UNSATISFIABLE: {e}",
+                    metadata={
+                        "error": str(e),
+                        "error_type": "UNSAT",
+                        "is_expected_failure": True,
+                    },
+                )
+            else:
+                # Actual solver bug - propagate
+                logger.error(
+                    f"[Logic Puzzle] CONSTRAINT REASONING BUG: {e}", exc_info=True
+                )
+                raise
         except Exception as e:
-            logger.error(f"[Logic Puzzle Solving] Fehler: {e}", exc_info=True)
-            return None
+            # Unexpected errors - log verbosely and propagate
+            logger.error(
+                f"[Logic Puzzle] UNEXPECTED ERROR: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
+            # Re-raise to fail test instead of silently returning None
+            raise
 
     def _extract_entities_from_query(self, query_text: str) -> List[str]:
         """
@@ -1177,18 +1525,66 @@ class StrategyDispatcher:
                 # Skip first word (might be capitalized question word)
                 if i == 0:
                     continue
+
+                # Remove punctuation BEFORE exclusion check
+                clean_word = re.sub(r"[^\w]", "", word)
+
+                # Skip empty strings after punctuation removal
+                if not clean_word:
+                    continue
+
                 # Check if capitalized and not common German words
-                if word[0].isupper() and word not in [
+                # Synchronized with kai_worker.py:81-101 ENTITY_EXCLUSIONS
+                if clean_word[0].isupper() and clean_word not in [
                     "Der",
                     "Die",
                     "Das",
                     "Ein",
                     "Eine",
                     "Einen",
+                    "Farbe",
+                    "Farben",
+                    "Beruf",
+                    "Berufe",
+                    "Person",
+                    "Personen",
+                    # Colors (objects, not entities)
+                    "Rot",
+                    "Blau",
+                    "Gruen",
+                    "Gelb",
+                    "Schwarz",
+                    "Weiss",
+                    "Grau",
+                    "Orange",
+                    "Lila",
+                    "Rosa",
+                    "Braun",
+                    # German color adjective declined forms (neuter/accusative)
+                    "Gelbes",
+                    "Rotes",
+                    "Blaues",
+                    "Gruenes",
+                    "Weisses",
+                    "Schwarzes",
+                    # German indefinite pronouns
+                    "Jede",
+                    "Jeder",
+                    "Jedes",
+                    "Alle",
+                    "Keine",
+                    "Keiner",
+                    # German command verbs (imperatives)
+                    "Finde",
+                    "Gib",
+                    "Nenne",
+                    "Bestimme",
+                    "Zeige",
+                    "Erklaere",
+                    "Berechne",
                 ]:
-                    # Remove punctuation
-                    clean_word = re.sub(r"[^\w]", "", word)
-                    if clean_word and clean_word not in entities:
+                    # Add cleaned word if not already in list
+                    if clean_word not in entities:
                         entities.append(clean_word)
 
             logger.debug(

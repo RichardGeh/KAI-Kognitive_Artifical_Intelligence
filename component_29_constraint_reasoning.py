@@ -1078,3 +1078,264 @@ def _is_false(value) -> bool:
     if value is None:
         return True  # Unassigned gilt als false
     return not _is_true(value)
+
+
+# =============================================================================
+# Position-based Constraint Helpers for Zebra Puzzles
+# =============================================================================
+
+
+def directly_left_of_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: pos(A) + 1 == pos(B)
+
+    Entity A is directly to the left of entity B (adjacent, A before B).
+
+    Args:
+        pos_var_a: Position variable name for entity A
+        pos_var_b: Position variable name for entity B
+
+    Returns:
+        Binary constraint enforcing A is directly left of B
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a + 1 == pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} directly_left_of {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def directly_right_of_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: pos(A) - 1 == pos(B) (i.e., pos(A) == pos(B) + 1)
+
+    Entity A is directly to the right of entity B (adjacent, A after B).
+
+    Args:
+        pos_var_a: Position variable name for entity A
+        pos_var_b: Position variable name for entity B
+
+    Returns:
+        Binary constraint enforcing A is directly right of B
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a == pos_b + 1
+
+    return Constraint(
+        name=f"{pos_var_a} directly_right_of {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def adjacent_to_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: |pos(A) - pos(B)| == 1
+
+    Entity A is adjacent to entity B (either left or right neighbor).
+
+    Args:
+        pos_var_a: Position variable name for entity A
+        pos_var_b: Position variable name for entity B
+
+    Returns:
+        Binary constraint enforcing A and B are neighbors
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return abs(pos_a - pos_b) == 1
+
+    return Constraint(
+        name=f"{pos_var_a} adjacent_to {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def at_position_constraint(pos_var: str, position: int) -> Constraint:
+    """
+    Create constraint: pos(A) == N
+
+    Entity A is at a specific position.
+
+    Args:
+        pos_var: Position variable name
+        position: The required position (1-indexed typically)
+
+    Returns:
+        Unary constraint enforcing specific position
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos = assignment.get(pos_var)
+        if pos is None:
+            return True  # Not yet assigned
+        return pos == position
+
+    return Constraint(
+        name=f"{pos_var} at_position {position}",
+        scope=[pos_var],
+        predicate=predicate,
+    )
+
+
+def same_position_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: pos(A) == pos(B)
+
+    Two attributes share the same position (belong to same entity in Zebra puzzle).
+
+    Args:
+        pos_var_a: Position variable for attribute A
+        pos_var_b: Position variable for attribute B
+
+    Returns:
+        Binary constraint enforcing same position
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a == pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} same_position_as {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def left_of_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: pos(A) < pos(B)
+
+    Entity A is somewhere to the left of entity B (not necessarily adjacent).
+
+    Args:
+        pos_var_a: Position variable name for entity A
+        pos_var_b: Position variable name for entity B
+
+    Returns:
+        Binary constraint enforcing A is left of B
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a < pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} left_of {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def different_position_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint: pos(A) != pos(B)
+
+    Two attributes must NOT share the same position (belong to different entities).
+    Used for negation constraints like "Clara ist nicht die Anwaeltin".
+
+    Args:
+        pos_var_a: Position variable for attribute A
+        pos_var_b: Position variable for attribute B
+
+    Returns:
+        Binary constraint enforcing different positions
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a != pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} different_position_from {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def greater_than_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint for ordering puzzles: A > B means pos(A) < pos(B)
+
+    In ordering puzzles where position 1 = greatest and position N = smallest:
+    - "A ist groesser als B" means A has a lower position number (closer to 1)
+    - Example: Anna (pos=1) > Ben (pos=2) because 1 < 2
+
+    Args:
+        pos_var_a: Position variable name for entity A (the greater one)
+        pos_var_b: Position variable name for entity B (the lesser one)
+
+    Returns:
+        Binary constraint enforcing pos(A) < pos(B)
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a < pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} greater_than {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )
+
+
+def less_than_constraint(pos_var_a: str, pos_var_b: str) -> Constraint:
+    """
+    Create constraint for ordering puzzles: A < B means pos(A) > pos(B)
+
+    In ordering puzzles where position 1 = greatest and position N = smallest:
+    - "A ist kleiner als B" means A has a higher position number (farther from 1)
+    - Example: Ben (pos=2) < Anna (pos=1) because 2 > 1
+
+    Args:
+        pos_var_a: Position variable name for entity A (the lesser one)
+        pos_var_b: Position variable name for entity B (the greater one)
+
+    Returns:
+        Binary constraint enforcing pos(A) > pos(B)
+    """
+
+    def predicate(assignment: Dict[str, Any]) -> bool:
+        pos_a = assignment.get(pos_var_a)
+        pos_b = assignment.get(pos_var_b)
+        if pos_a is None or pos_b is None:
+            return True  # Not yet assigned
+        return pos_a > pos_b
+
+    return Constraint(
+        name=f"{pos_var_a} less_than {pos_var_b}",
+        scope=[pos_var_a, pos_var_b],
+        predicate=predicate,
+    )

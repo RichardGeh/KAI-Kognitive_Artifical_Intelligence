@@ -317,8 +317,28 @@ def score_partial_correctness(
 
 
 def _calculate_tree_depth(tree: Dict) -> int:
-    """Calculate maximum depth of tree"""
-    if not tree or "children" not in tree:
+    """
+    Calculate maximum depth of tree.
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    """
+    if not tree:
+        return 0
+
+    # Handle ProofTree format: {"root_steps": [...], "query": "...", ...}
+    if "root_steps" in tree:
+        root_steps = tree["root_steps"]
+        if not root_steps:
+            return 1
+        # Calculate max depth across all root steps
+        max_depth = 0
+        for step in root_steps:
+            step_depth = _calculate_step_depth(step, 1)
+            max_depth = max(max_depth, step_depth)
+        return max_depth
+
+    # Handle legacy format: {"children": [...]}
+    if "children" not in tree:
         return 1
 
     if not tree["children"]:
@@ -328,26 +348,129 @@ def _calculate_tree_depth(tree: Dict) -> int:
     return 1 + max_child_depth
 
 
+def _calculate_step_depth(step: Dict, current_depth: int = 1) -> int:
+    """
+    Calculate depth of a ProofStep (recursive through subgoals).
+
+    Args:
+        step: ProofStep dictionary
+        current_depth: Current depth level
+
+    Returns:
+        Maximum depth from this step
+    """
+    if not isinstance(step, dict):
+        return current_depth
+
+    # Check for subgoals (ProofStep format)
+    subgoals = step.get("subgoals", [])
+    if not subgoals:
+        return current_depth
+
+    # Recursively calculate depth for each subgoal
+    max_subgoal_depth = current_depth
+    for subgoal in subgoals:
+        subgoal_depth = _calculate_step_depth(subgoal, current_depth + 1)
+        max_subgoal_depth = max(max_subgoal_depth, subgoal_depth)
+
+    return max_subgoal_depth
+
+
 def _extract_strategies_from_tree(tree: Dict) -> List[str]:
-    """Extract strategy names from proof tree"""
+    """
+    Extract strategy names from proof tree.
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    Extracts strategies from source_component and rule_name fields.
+    """
     strategies = []
 
-    def traverse(node):
-        if "strategy" in node:
-            strategies.append(node["strategy"])
-        if "type" in node and "engine" in node["type"].lower():
-            # Extract engine name as strategy
-            strategies.append(node["type"])
-        if "children" in node:
-            for child in node["children"]:
-                traverse(child)
+    def traverse_step(step):
+        """Traverse a ProofStep node"""
+        if not isinstance(step, dict):
+            return
 
-    traverse(tree)
-    return strategies
+        # Check legacy format fields
+        if "strategy" in step:
+            strategies.append(step["strategy"])
+        if "type" in step and isinstance(step.get("type"), str):
+            type_val = step["type"].lower()
+            if "engine" in type_val:
+                strategies.append(step["type"])
+
+        # Check ProofTree format: source_component field
+        if "source_component" in step:
+            component = step["source_component"]
+            if "sat_solver" in component or "component_30" in component:
+                strategies.append("sat")
+            elif (
+                "constraint" in component
+                or "csp" in component
+                or "component_29" in component
+            ):
+                strategies.append("constraint_satisfaction")
+            elif "logic_engine" in component or "component_9" in component:
+                strategies.append("logic_engine")
+            elif "graph_traversal" in component or "component_12" in component:
+                strategies.append("graph_traversal")
+            elif "spatial" in component or "component_42" in component:
+                strategies.append("spatial_reasoning")
+            elif "arithmetic" in component or "component_52" in component:
+                strategies.append("arithmetic_reasoning")
+            elif "abductive" in component or "component_14" in component:
+                strategies.append("abductive_reasoning")
+            elif "probabilistic" in component or "component_16" in component:
+                strategies.append("probabilistic_reasoning")
+            elif "knowledge" in component or "netzwerk" in component:
+                strategies.append("knowledge_retrieval")
+
+        # Check ProofTree format: rule_name field
+        if "rule_name" in step and step["rule_name"]:
+            rule = step["rule_name"].lower()
+            if "sat" in rule:
+                strategies.append("sat")
+            elif "csp" in rule or "constraint" in rule:
+                strategies.append("constraint_satisfaction")
+            elif "unit propagation" in rule:
+                strategies.append("sat")
+            elif "logic" in rule:
+                strategies.append("logic_engine")
+
+        # Traverse subgoals (ProofStep format)
+        if "subgoals" in step:
+            for subgoal in step["subgoals"]:
+                traverse_step(subgoal)
+
+        # Traverse children (legacy format)
+        if "children" in step:
+            for child in step["children"]:
+                traverse_step(child)
+
+    # Handle ProofTree format: root_steps
+    if "root_steps" in tree:
+        for step in tree["root_steps"]:
+            traverse_step(step)
+    else:
+        # Legacy format
+        traverse_step(tree)
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_strategies = []
+    for s in strategies:
+        if s not in seen:
+            seen.add(s)
+            unique_strategies.append(s)
+
+    return unique_strategies
 
 
 def _evaluate_tree_coherence(tree: Dict) -> Tuple[float, List[str]]:
-    """Evaluate logical coherence of proof tree structure"""
+    """
+    Evaluate logical coherence of proof tree structure.
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    """
     observations = []
     score = 30.0  # Start with full coherence score
 
@@ -377,10 +500,22 @@ def _evaluate_tree_coherence(tree: Dict) -> Tuple[float, List[str]]:
 
 
 def _count_tree_nodes(tree: Dict) -> int:
-    """Count total nodes in tree"""
+    """
+    Count total nodes in tree.
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    """
     if not tree:
         return 0
 
+    # Handle ProofTree format: root_steps
+    if "root_steps" in tree:
+        count = 0
+        for step in tree["root_steps"]:
+            count += _count_step_nodes(step)
+        return count
+
+    # Legacy format
     count = 1
     if "children" in tree:
         for child in tree["children"]:
@@ -388,22 +523,76 @@ def _count_tree_nodes(tree: Dict) -> int:
     return count
 
 
+def _count_step_nodes(step: Dict) -> int:
+    """Count nodes in a ProofStep (including subgoals)."""
+    if not isinstance(step, dict):
+        return 0
+
+    count = 1
+    subgoals = step.get("subgoals", [])
+    for subgoal in subgoals:
+        count += _count_step_nodes(subgoal)
+    return count
+
+
 def _count_leaf_nodes(tree: Dict) -> int:
-    """Count leaf nodes in tree"""
+    """
+    Count leaf nodes in tree.
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    """
     if not tree:
         return 0
 
+    # Handle ProofTree format: root_steps
+    if "root_steps" in tree:
+        count = 0
+        for step in tree["root_steps"]:
+            count += _count_step_leaves(step)
+        return count
+
+    # Legacy format
     if "children" not in tree or not tree["children"]:
         return 1
 
     return sum(_count_leaf_nodes(child) for child in tree["children"])
 
 
+def _count_step_leaves(step: Dict) -> int:
+    """Count leaf nodes in a ProofStep (nodes with no subgoals)."""
+    if not isinstance(step, dict):
+        return 0
+
+    subgoals = step.get("subgoals", [])
+    if not subgoals:
+        return 1
+
+    count = 0
+    for subgoal in subgoals:
+        count += _count_step_leaves(subgoal)
+    return count
+
+
 def _count_branch_nodes(tree: Dict) -> int:
-    """Count nodes with multiple children (branch points)"""
+    """
+    Count nodes with multiple children (branch points).
+
+    Handles both legacy format (children) and ProofTree format (root_steps/subgoals).
+    """
     if not tree:
         return 0
 
+    # Handle ProofTree format: root_steps
+    if "root_steps" in tree:
+        count = 0
+        # Multiple root steps counts as a branch point
+        if len(tree["root_steps"]) > 1:
+            count = 1
+        for step in tree["root_steps"]:
+            count += _count_step_branches(step)
+        return count
+
+    # Legacy format
     count = 0
     if "children" in tree and len(tree["children"]) > 1:
         count = 1
@@ -411,6 +600,23 @@ def _count_branch_nodes(tree: Dict) -> int:
     if "children" in tree:
         for child in tree["children"]:
             count += _count_branch_nodes(child)
+
+    return count
+
+
+def _count_step_branches(step: Dict) -> int:
+    """Count branch points in a ProofStep (nodes with multiple subgoals)."""
+    if not isinstance(step, dict):
+        return 0
+
+    subgoals = step.get("subgoals", [])
+    count = 0
+
+    if len(subgoals) > 1:
+        count = 1
+
+    for subgoal in subgoals:
+        count += _count_step_branches(subgoal)
 
     return count
 

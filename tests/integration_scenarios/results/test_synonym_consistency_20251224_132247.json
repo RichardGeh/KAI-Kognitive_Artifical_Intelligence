@@ -1,0 +1,26 @@
+{
+  "scenario": "test_synonym_consistency",
+  "timestamp": "2025-12-24T13:22:47.210858",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T13:22:47.211326",
+    "input_text": "Lerne: Ein Auto ist ein Fahrzeug mit vier Raedern.",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T13:22:47.293753",
+    "response": "KaiResponse(text='Ok, ich habe 1 neue Fakt gelernt.', trace=[], answer_id=None, confidence=0.8, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.8
+  },
+  "metadata": {
+    "scenario_name": "test_synonym_consistency",
+    "start_time": "2025-12-24T13:22:47.210858",
+    "end_time": "2025-12-24T13:22:47.293757"
+  }
+}

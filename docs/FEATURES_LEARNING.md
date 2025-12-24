@@ -33,27 +33,27 @@ Das System lernt kontinuierlich durch Nutzer-Feedback und verbessert seine Genau
 
 ```
 PatternOrchestrator (component_24_pattern_orchestrator.py)
-    ├─→ TypoCandidateFinder (component_19_pattern_recognition_char.py)
-    │   └─→ QWERTZ-basierte gewichtete Levenshtein-Distanz
+    ├─-> TypoCandidateFinder (component_19_pattern_recognition_char.py)
+    │   └─-> QWERTZ-basierte gewichtete Levenshtein-Distanz
     │
-    ├─→ SequencePredictor (component_20_pattern_recognition_sequence.py)
-    │   └─→ N-Gramm-Modell mit CONNECTION-Edges
+    ├─-> SequencePredictor (component_20_pattern_recognition_sequence.py)
+    │   └─-> N-Gramm-Modell mit CONNECTION-Edges
     │
-    └─→ ImplicationDetector (component_22_pattern_recognition_implicit.py)
-        └─→ Property-Implikations-Regeln (groß → größe, rot → farbe)
+    └─-> ImplicationDetector (component_22_pattern_recognition_implicit.py)
+        └─-> Property-Implikations-Regeln (groß -> größe, rot -> farbe)
 
 KaiContextManager (kai_context_manager.py)
-    └─→ _handle_typo_clarification()
-        └─→ "Nein, ich meine X" Feedback-Loop
+    └─-> _handle_typo_clarification()
+        └─-> "Nein, ich meine X" Feedback-Loop
 
 KonzeptNetzwerk (component_1_netzwerk.py)
-    ├─→ Word Usage Tracking (component_1_netzwerk_word_usage.py)
-    │   ├─→ UsageContext Nodes (authentische Textfragmente)
-    │   └─→ CONNECTION Edges (N-Gramm-Statistiken)
+    ├─-> Word Usage Tracking (component_1_netzwerk_word_usage.py)
+    │   ├─-> UsageContext Nodes (authentische Textfragmente)
+    │   └─-> CONNECTION Edges (N-Gramm-Statistiken)
     │
-    └─→ Feedback Storage (component_1_netzwerk_feedback.py)
-        ├─→ TypoFeedback Nodes (Nutzer-Korrekturen)
-        └─→ PatternQuality Nodes (Erfolgs-/Fehlerquoten)
+    └─-> Feedback Storage (component_1_netzwerk_feedback.py)
+        ├─-> TypoFeedback Nodes (Nutzer-Korrekturen)
+        └─-> PatternQuality Nodes (Erfolgs-/Fehlerquoten)
 ```
 
 ---
@@ -70,9 +70,9 @@ KonzeptNetzwerk (component_1_netzwerk.py)
   - QWERTZ-Nachbarn: Gewicht 0.3
   - ß/ä Verwechslungen: Gewicht 0.5
   - Andere Ersetzungen: Gewicht 1.0
-- Bootstrap-Mechanismus: Nur Wörter mit ≥10 Verwendungen berücksichtigen
+- Bootstrap-Mechanismus: Nur Wörter mit >=10 Verwendungen berücksichtigen
 - Konfidenz-basierte Entscheidungen:
-  - ≥0.85: Auto-Korrektur
+  - >=0.85: Auto-Korrektur
   - 0.60-0.84: Nutzer-Rückfrage
   - <0.60: Keine Korrektur
 
@@ -107,7 +107,7 @@ confidence = (1 - normalized_distance) * occurrence_factor
   - Häufigkeit der Wortfolge
   - Distanz zwischen Wörtern (1 = direkt aufeinanderfolgend)
   - Kontext-Fenster (letzte 1-2 Wörter)
-- Bootstrap: Nur Verbindungen mit ≥5 Vorkommen
+- Bootstrap: Nur Verbindungen mit >=5 Vorkommen
 
 **Beispiel**:
 ```python
@@ -138,10 +138,10 @@ probability = connection.count / total_connections
 
 **Funktionsweise**:
 - Property-basierte Regeln für implizite Fakten
-- Mapping: `{Eigenschaft → Kategorie}`
-  - groß/klein → größe
-  - rot/blau/grün → farbe
-  - schnell/langsam → geschwindigkeit
+- Mapping: `{Eigenschaft -> Kategorie}`
+  - groß/klein -> größe
+  - rot/blau/grün -> farbe
+  - schnell/langsam -> geschwindigkeit
 - Hohe Konfidenz (0.85) für bekannte Muster
 
 **Beispiel**:
@@ -206,13 +206,13 @@ result = orchestrator.process_input("Ein Kat bellt laut")
 
 ### 5. Feedback-Loop (Multi-Turn-Dialog)
 
-**Datei**: `kai_context_manager.py` → `_handle_typo_clarification()`
+**Datei**: `kai_context_manager.py` -> `_handle_typo_clarification()`
 
 **Funktionsweise**:
 - Verarbeitet Nutzer-Feedback nach Rückfragen
 - Drei Szenarien:
-  1. **Akzeptanz** ("Ja"): Positives Feedback → Konfidenz steigt
-  2. **Korrektur** ("Nein, ich meine X"): Negatives Feedback → Lernen aus Fehler
+  1. **Akzeptanz** ("Ja"): Positives Feedback -> Konfidenz steigt
+  2. **Korrektur** ("Nein, ich meine X"): Negatives Feedback -> Lernen aus Fehler
   3. **Direkte Eingabe**: Nutzer gibt korrektes Wort ein
 
 **Beispiel-Dialog**:
@@ -301,10 +301,10 @@ KAI's Pattern Recognition System wurde um **adaptive, datengetriebene Intelligen
 │  component_25_adaptive_thresholds.py                            │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ AdaptiveThresholdManager                                   │ │
-│  │  • get_bootstrap_phase() → cold_start/warming/mature       │ │
-│  │  • get_typo_threshold() → min(10, max(3, vocab^0.4))      │ │
-│  │  • get_sequence_threshold() → min(5, max(2, conn^0.35))   │ │
-│  │  • get_confidence_gates() → phase-abhängige Schwellenwerte │ │
+│  │  • get_bootstrap_phase() -> cold_start/warming/mature       │ │
+│  │  • get_typo_threshold() -> min(10, max(3, vocab^0.4))      │ │
+│  │  • get_sequence_threshold() -> min(5, max(2, conn^0.35))   │ │
+│  │  • get_confidence_gates() -> phase-abhängige Schwellenwerte │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -324,9 +324,9 @@ manager = AdaptiveThresholdManager(netzwerk)
 
 # Automatische Phase-Erkennung
 phase = manager.get_bootstrap_phase()
-# → BootstrapPhase.COLD_START (<100 words)
-# → BootstrapPhase.WARMING (100-1000 words)
-# → BootstrapPhase.MATURE (>1000 words)
+# -> BootstrapPhase.COLD_START (<100 words)
+# -> BootstrapPhase.WARMING (100-1000 words)
+# -> BootstrapPhase.MATURE (>1000 words)
 ```
 
 **Vorteile:**
@@ -341,10 +341,10 @@ phase = manager.get_bootstrap_phase()
 Threshold = min(10, max(3, vocab_size^0.4))
 
 Beispiele:
-  10 words   → 3 occurrences  (minimum, ermöglicht early learning)
-  100 words  → 4 occurrences
-  1000 words → 6 occurrences
-  10000 words→ 10 occurrences (maximum, robust gegen Noise)
+  10 words   -> 3 occurrences  (minimum, ermöglicht early learning)
+  100 words  -> 4 occurrences
+  1000 words -> 6 occurrences
+  10000 words-> 10 occurrences (maximum, robust gegen Noise)
 ```
 
 **Sequence Prediction:**
@@ -352,9 +352,9 @@ Beispiele:
 Threshold = min(5, max(2, connection_count^0.35))
 
 Beispiele:
-  10 connections   → 2 occurrences
-  100 connections  → 3 occurrences
-  1000 connections → 5 occurrences (maximum)
+  10 connections   -> 2 occurrences
+  100 connections  -> 3 occurrences
+  1000 connections -> 5 occurrences (maximum)
 ```
 
 #### Phase-Abhängige Confidence Gates
@@ -398,10 +398,10 @@ RETURN out_count, in_count, out_count + in_count AS total_count
 sigmoid = 1.0 / (1.0 + exp(-(total_degree - 5.0) / 3.0))
 
 Beispiele:
-  0 relations  → 0.00 (unbekanntes Wort)
-  5 relations  → 0.50 (midpoint)
-  10 relations → 0.82 (häufiges Wort)
-  20+ relations→ 0.99 (sehr häufiges Wort)
+  0 relations  -> 0.00 (unbekanntes Wort)
+  5 relations  -> 0.50 (midpoint)
+  10 relations -> 0.82 (häufiges Wort)
+  20+ relations-> 0.99 (sehr häufiges Wort)
 ```
 
 #### Integration in Typo Detection (component_19:244-268)
@@ -429,23 +429,23 @@ confidence = (
 
 **Beta-Distribution:**
 ```
-Prior: Beta(α=1, β=1) → Uniform[0,1]
+Prior: Beta(α=1, β=1) -> Uniform[0,1]
 
 Update:
-  Success → α += 1
-  Failure → β += 1
+  Success -> α += 1
+  Failure -> β += 1
 
 Posterior Mean: α / (α + β)
 ```
 
 **Beispiel-Konvergenz:**
 ```
-Initial:         α=1, β=1  → Weight=0.50  (uninformative prior)
-After 3 Success: α=4, β=1  → Weight=0.80
-After 1 Failure: α=4, β=2  → Weight=0.67
-After 6 more Success: α=10, β=2 → Weight=0.83
+Initial:         α=1, β=1  -> Weight=0.50  (uninformative prior)
+After 3 Success: α=4, β=1  -> Weight=0.80
+After 1 Failure: α=4, β=2  -> Weight=0.67
+After 6 more Success: α=10, β=2 -> Weight=0.83
 
-→ Konvergiert zu True Success Rate mit robustem Smoothing
+-> Konvergiert zu True Success Rate mit robustem Smoothing
 ```
 
 #### Implementation (component_1_netzwerk_feedback.py:253-414)
@@ -454,7 +454,7 @@ After 6 more Success: α=10, β=2 → Weight=0.83
 ```cypher
 MERGE (pq:PatternQuality {
     pattern_type: "typo_correction",
-    pattern_key: "ktzae→katze"
+    pattern_key: "ktzae->katze"
 })
 SET pq.alpha = pq.alpha + 1.0,  -- bei Success
     pq.beta = pq.beta + 0.0,
@@ -469,9 +469,9 @@ SET pq.alpha = pq.alpha + 1.0,  -- bei Success
 multiplier = 0.5 + pattern_quality_weight
 
 Beispiele:
-  Weight 0.0 → 0.5x  (stark downgrade bei schlechtem Pattern)
-  Weight 0.75→ 1.25x (prior, neutral)
-  Weight 1.0 → 1.5x  (boost bei perfektem Pattern)
+  Weight 0.0 -> 0.5x  (stark downgrade bei schlechtem Pattern)
+  Weight 0.75-> 1.25x (prior, neutral)
+  Weight 1.0 -> 1.5x  (boost bei perfektem Pattern)
 
 final_confidence = min(1.0, base_confidence * multiplier)
 ```
@@ -545,7 +545,7 @@ record_typo_correction_feedback(
     confidence=0.87
 )
 
-# System learns: "ktzae→katze" Pattern Quality increases
+# System learns: "ktzae->katze" Pattern Quality increases
 ```
 
 ### Example 2: Adaptive Threshold Monitoring
@@ -639,10 +639,10 @@ User: "Ingestiere Text: Katzen sind Säugetiere. Sie haben Fell."
 **Solution**: Natural conversation learning:
 ```
 User: "Ein Hund ist ein Tier"
-→ KAI automatically learns: hund IS_A tier
+-> KAI automatically learns: hund IS_A tier
 
 User: "Katzen können miauen"
-→ KAI automatically learns: katzen CAPABLE_OF miauen
+-> KAI automatically learns: katzen CAPABLE_OF miauen
 ```
 
 ---
@@ -657,12 +657,12 @@ Detects declarative statements and assigns confidence scores.
 **Supported Patterns**:
 | Pattern | Example | Confidence | Auto-Save |
 |---------|---------|------------|-----------|
-| IS_A (singular) | "Ein Hund ist ein Tier" | 0.92 | ✅ Yes |
-| IS_A (plural) | "Katzen sind Tiere" | 0.87 | ✅ Yes |
-| HAS_PROPERTY | "Der Apfel ist rot" | 0.78 | ⚠️ Confirmation required |
-| CAPABLE_OF | "Vögel können fliegen" | 0.91 | ✅ Yes |
-| PART_OF | "Ein Auto hat Räder" | 0.88 | ✅ Yes |
-| LOCATED_IN | "Berlin liegt in Deutschland" | 0.93 | ✅ Yes |
+| IS_A (singular) | "Ein Hund ist ein Tier" | 0.92 | [OK] Yes |
+| IS_A (plural) | "Katzen sind Tiere" | 0.87 | [OK] Yes |
+| HAS_PROPERTY | "Der Apfel ist rot" | 0.78 | [CONFIRM] Bestaetigung erforderlich |
+| CAPABLE_OF | "Vögel können fliegen" | 0.91 | [OK] Yes |
+| PART_OF | "Ein Auto hat Räder" | 0.88 | [OK] Yes |
+| LOCATED_IN | "Berlin liegt in Deutschland" | 0.93 | [OK] Yes |
 
 #### Phase 2: Plan Creation (`component_4_goal_planner.py`)
 Creates execution plan based on confidence thresholds.
@@ -670,7 +670,7 @@ Creates execution plan based on confidence thresholds.
 **Confidence-Based Execution Gates**:
 | Confidence Range | Action | SubGoalType | Requires Confirmation |
 |-----------------|--------|-------------|----------------------|
-| ≥ 0.85 | Auto-save | LEARN_DEFINITION | No |
+| >= 0.85 | Auto-save | LEARN_DEFINITION | No |
 | 0.70 - 0.84 | User confirmation | LEARN_DEFINITION | Yes |
 | 0.40 - 0.69 | Suggest alternative | ANSWER_QUESTION | Yes |
 | < 0.40 | Clarification request | CLARIFY | N/A |
@@ -682,39 +682,39 @@ Extracts triple and stores in Neo4j.
 
 ## Usage Examples
 
-### Example 1: High Confidence → Auto-Save
+### Example 1: High Confidence -> Auto-Save
 ```
 User: "Ein Hund ist ein Tier"
 
 [Detection Phase]
-→ Pattern: IS_A (singular)
-→ Triple: (hund, IS_A, tier)
-→ Confidence: 0.92
+-> Pattern: IS_A (singular)
+-> Triple: (hund, IS_A, tier)
+-> Confidence: 0.92
 
 [Planning Phase]
-→ 0.92 ≥ 0.85 → Auto-save
-→ SubGoal: LEARN_DEFINITION (requires_confirmation=False)
+-> 0.92 >= 0.85 -> Auto-save
+-> SubGoal: LEARN_DEFINITION (requires_confirmation=False)
 
 [Execution Phase]
-→ Store in Neo4j: hund -[IS_A]-> tier
-→ Response: "Ok, ich habe mir gemerkt: 'hund' → 'tier'. (Konfidenz: 92%)"
+-> Store in Neo4j: hund -[IS_A]-> tier
+-> Response: "Ok, ich habe mir gemerkt: 'hund' -> 'tier'. (Konfidenz: 92%)"
 ```
 
-### Example 2: Medium Confidence → Confirmation Required
+### Example 2: Medium Confidence -> Confirmation Required
 ```
 User: "Der Apfel ist rot"
 
 [Detection Phase]
-→ Pattern: HAS_PROPERTY (adjective)
-→ Triple: (apfel, HAS_PROPERTY, rot)
-→ Confidence: 0.78
+-> Pattern: HAS_PROPERTY (adjective)
+-> Triple: (apfel, HAS_PROPERTY, rot)
+-> Confidence: 0.78
 
 [Planning Phase]
-→ 0.70 ≤ 0.78 < 0.85 → Confirmation required
-→ SubGoal: LEARN_DEFINITION (requires_confirmation=True)
+-> 0.70 <= 0.78 < 0.85 -> Confirmation required
+-> SubGoal: LEARN_DEFINITION (requires_confirmation=True)
 
 [Execution Phase]
-→ Response: "Soll ich mir merken, dass 'apfel' hat die Eigenschaft 'rot'? (Konfidenz: 78%)"
+-> Response: "Soll ich mir merken, dass 'apfel' hat die Eigenschaft 'rot'? (Konfidenz: 78%)"
 ```
 
 ---
@@ -810,19 +810,19 @@ from kai_confidence_manager import ConfidenceLevel, confidence_manager
 
 # Classify confidence
 level = confidence_manager.classify_confidence(0.92)
-# → ConfidenceLevel.HIGH
+# -> ConfidenceLevel.HIGH
 
 level = confidence_manager.classify_confidence(0.75)
-# → ConfidenceLevel.MEDIUM
+# -> ConfidenceLevel.MEDIUM
 
 level = confidence_manager.classify_confidence(0.35)
-# → ConfidenceLevel.LOW
+# -> ConfidenceLevel.LOW
 ```
 
 **Thresholds** (configurable):
 | Level | Range | Description |
 |-------|-------|-------------|
-| HIGH | ≥ 0.85 | Very confident, auto-save appropriate |
+| HIGH | >= 0.85 | Very confident, auto-save appropriate |
 | MEDIUM | 0.70 - 0.84 | Moderately confident, confirmation needed |
 | LOW | 0.40 - 0.69 | Low confidence, suggest alternative |
 | UNCERTAIN | < 0.40 | Very uncertain, clarification required |
@@ -860,14 +860,14 @@ combined = confidence_manager.combine_confidences(
     [0.9, 0.8, 0.95],
     strategy=CombinationStrategy.MIN
 )
-# → 0.8
+# -> 0.8
 
 # Average strategy
 combined = confidence_manager.combine_confidences(
     [0.9, 0.8, 0.95],
     strategy=CombinationStrategy.AVERAGE
 )
-# → 0.8833
+# -> 0.8833
 
 # Weighted average strategy
 combined = confidence_manager.combine_confidences(
@@ -875,7 +875,7 @@ combined = confidence_manager.combine_confidences(
     strategy=CombinationStrategy.WEIGHTED_AVERAGE,
     weights=[0.5, 0.3, 0.2]
 )
-# → 0.87
+# -> 0.87
 ```
 
 **Available Strategies**:
@@ -901,7 +901,7 @@ current_confidence = confidence_manager.apply_decay(
     learned_date=learned_date,
     half_life_days=90.0  # Half-life of 90 days
 )
-# → ~0.83 (decay formula: confidence * (0.5 ^ (days_ago / half_life)))
+# -> ~0.83 (decay formula: confidence * (0.5 ^ (days_ago / half_life)))
 ```
 
 ---
@@ -942,7 +942,7 @@ adjusted = feedback_manager.adjust_confidence(
     pattern_type="IS_A",
     initial_confidence=0.92
 )
-# → If IS_A pattern has 90% user acceptance rate:
+# -> If IS_A pattern has 90% user acceptance rate:
 #    adjusted = 0.92 * 0.9 = 0.83
 ```
 

@@ -16,9 +16,9 @@ from typing import Any, Dict, List, Optional
 
 from component_1_netzwerk_common_words import CommonWordsManager
 from component_1_netzwerk_core import INFO_TYPE_ALIASES, KonzeptNetzwerkCore
+from component_1_netzwerk_extraction_patterns import KonzeptNetzwerkPatterns
 from component_1_netzwerk_feedback import KonzeptNetzwerkFeedback
 from component_1_netzwerk_memory import KonzeptNetzwerkMemory
-from component_1_netzwerk_patterns import KonzeptNetzwerkPatterns
 from component_1_netzwerk_production_rules import KonzeptNetzwerkProductionRules
 from component_1_netzwerk_word_usage import KonzeptNetzwerkWordUsage
 
@@ -660,6 +660,281 @@ class KonzeptNetzwerk:
     def get_common_words_statistics(self) -> dict:
         """Get statistics about common words."""
         return self._common_words.get_statistics()
+
+    # ========== PATTERN DISCOVERY METHODS (Part 2) ==========
+    # Delegate to KonzeptNetzwerkCore
+
+    def create_utterance(
+        self, text: str, embedding: List[float], user_id: Optional[str] = None
+    ) -> str:
+        """
+        Create Utterance node for pattern discovery.
+
+        Args:
+            text: Original user input text
+            embedding: 384-dimensional embedding vector
+            user_id: Optional user identifier
+
+        Returns:
+            Utterance ID (UUID)
+        """
+        return self._core.create_utterance(text, embedding, user_id)
+
+    def get_recent_utterances(
+        self, limit: int = 100, archived: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent utterances efficiently using temporal index.
+
+        Args:
+            limit: Maximum number of utterances (1-10000)
+            archived: Whether to retrieve archived utterances
+
+        Returns:
+            List of utterance dicts
+        """
+        return self._core.get_recent_utterances(limit, archived)
+
+    def archive_old_utterances(self, days_threshold: int = 30) -> int:
+        """
+        Archive old utterances for scalability.
+
+        Args:
+            days_threshold: Archive utterances older than N days
+
+        Returns:
+            Number of utterances archived
+        """
+        return self._core.archive_old_utterances(days_threshold)
+
+    def create_token(
+        self, surface: str, lemma: str, pos: str, utterance_id: str, idx: int
+    ) -> str:
+        """
+        Create Token node linked to Utterance.
+
+        Args:
+            surface: Original word form
+            lemma: Base form
+            pos: Part-of-speech tag
+            utterance_id: UUID of parent utterance
+            idx: Token position (0-based)
+
+        Returns:
+            Token ID (UUID)
+        """
+        return self._core.create_token(surface, lemma, pos, utterance_id, idx)
+
+    def get_tokens_for_utterance(self, utterance_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve tokens in sequence order.
+
+        Args:
+            utterance_id: UUID of utterance
+
+        Returns:
+            List of token dicts in sequence order
+        """
+        return self._core.get_tokens_for_utterance(utterance_id)
+
+    def get_tokens_for_utterances_batch(
+        self, utterance_ids: List[str]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Fetch tokens for multiple utterances in single query (batch optimization).
+
+        Args:
+            utterance_ids: List of utterance UUIDs
+
+        Returns:
+            Dict mapping utterance_id to list of token dicts
+        """
+        return self._core.get_tokens_for_utterances_batch(utterance_ids)
+
+    def create_pattern(
+        self, name: str, pattern_type: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Create Pattern node for pattern discovery.
+
+        Args:
+            name: Pattern name
+            pattern_type: Type - "seed", "learned", or "template"
+            metadata: Optional additional properties
+
+        Returns:
+            Pattern ID (UUID)
+        """
+        return self._core.create_pattern(name, pattern_type, metadata)
+
+    def update_pattern_stats(
+        self, pattern_id: str, support_increment: int, new_precision: float
+    ):
+        """
+        Update pattern statistics atomically.
+
+        Args:
+            pattern_id: UUID of pattern
+            support_increment: How much to increase support
+            new_precision: New precision value (0.0-1.0)
+        """
+        return self._core.update_pattern_stats(
+            pattern_id, support_increment, new_precision
+        )
+
+    def get_all_patterns(
+        self, type_filter: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve patterns with optional type filter.
+
+        Args:
+            type_filter: Optional - filter by pattern type
+            limit: Maximum number of patterns (1-10000)
+
+        Returns:
+            List of pattern dicts ordered by quality
+        """
+        return self._core.get_all_patterns(type_filter, limit)
+
+    def batch_create_pattern_items(
+        self, pattern_id: str, items: List[Dict[str, Any]]
+    ) -> int:
+        """
+        Create multiple PatternItems using UNWIND batch operation.
+
+        Args:
+            pattern_id: UUID of parent pattern
+            items: List of item dicts
+
+        Returns:
+            Number of items created
+        """
+        return self._core.batch_create_pattern_items(pattern_id, items)
+
+    def create_pattern_item(
+        self,
+        pattern_id: str,
+        idx: int,
+        kind: str,
+        literal_value: Optional[str] = None,
+        slot_id: Optional[str] = None,
+    ) -> str:
+        """
+        Create single PatternItem with HAS_ITEM relationship.
+
+        Args:
+            pattern_id: Pattern UUID
+            idx: Position in pattern sequence
+            kind: "LITERAL" or "SLOT"
+            literal_value: Required for LITERAL kind
+            slot_id: Required for SLOT kind
+
+        Returns:
+            PatternItem ID (UUID)
+        """
+        return self._core.create_pattern_item(
+            pattern_id, idx, kind, literal_value, slot_id
+        )
+
+    def create_slot(
+        self,
+        slot_type: str,
+        allowed_values: Optional[List[str]] = None,
+        min_count: int = 1,
+        max_count: int = 1,
+    ) -> str:
+        """
+        Create Slot node for pattern discovery.
+
+        Args:
+            slot_type: Slot type identifier
+            allowed_values: Optional list of initially allowed lemmas
+            min_count: Minimum token count
+            max_count: Maximum token count
+
+        Returns:
+            Slot ID (UUID)
+        """
+        return self._core.create_slot(slot_type, allowed_values, min_count, max_count)
+
+    def update_slot_allowed(self, slot_id: str, lemma: str, count_increment: int = 1):
+        """
+        Update or create ALLOWS relationship with count.
+
+        Args:
+            slot_id: UUID of slot
+            lemma: Lemma value to allow
+            count_increment: How much to increment count
+        """
+        return self._core.update_slot_allowed(slot_id, lemma, count_increment)
+
+    def match_utterance_to_pattern(
+        self, utterance_id: str, pattern_id: str, score: float
+    ):
+        """
+        Record MATCHED relationship between Utterance and Pattern.
+
+        Args:
+            utterance_id: UUID of utterance
+            pattern_id: UUID of pattern
+            score: Match score (0.0-1.0)
+        """
+        return self._core.match_utterance_to_pattern(utterance_id, pattern_id, score)
+
+    def match_utterance_patterns(self, utterance_id: str):
+        """
+        Match utterance against all patterns using hybrid scoring.
+
+        Combines template-based structural matching with embedding-based
+        semantic similarity for robust pattern recognition.
+
+        Args:
+            utterance_id: UUID of utterance to match
+
+        Returns:
+            List of (pattern_id, score) tuples sorted by score (highest first)
+
+        Example:
+            >>> matches = netzwerk.match_utterance_patterns(utterance_id)
+            >>> for pattern_id, score in matches[:5]:  # Top 5
+            ...     print(f"Pattern {pattern_id[:8]}: {score:.2f}")
+        """
+        return self._core.match_utterance_patterns(utterance_id)
+
+    def invalidate_pattern_candidate_cache(self):
+        """
+        Invalidate pattern candidate cache.
+
+        CRITICAL: Call after pattern creation/update to ensure fresh results.
+        This should be called when:
+        - New patterns are created
+        - Pattern statistics are updated
+        - Slot allowed values are modified
+        """
+        self._core.invalidate_pattern_candidate_cache()
+
+    # ========== PATTERN DISCOVERY PART 3 EXTENSIONS ==========
+
+    def count_utterances(self, archived: bool = False) -> int:
+        """Count utterances with optional archival filter."""
+        return self._core.count_utterances(archived)
+
+    def update_pattern_centroid(self, pattern_id: str, centroid: List[float]):
+        """Update pattern embedding centroid."""
+        self._core.update_pattern_centroid(pattern_id, centroid)
+
+    def get_pattern(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve single pattern with all properties."""
+        return self._core.get_pattern(pattern_id)
+
+    def get_pattern_items(self, pattern_id: str) -> List[Dict[str, Any]]:
+        """Retrieve pattern items ordered by index."""
+        return self._core.get_pattern_items(pattern_id)
+
+    def get_utterance(self, utterance_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve single utterance with all properties."""
+        return self._core.get_utterance(utterance_id)
 
 
 # Export INFO_TYPE_ALIASES for backward compatibility

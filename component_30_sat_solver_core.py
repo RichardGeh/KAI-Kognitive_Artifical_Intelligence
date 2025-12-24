@@ -291,6 +291,9 @@ class DPLLSolver:
         self.enable_proof = enable_proof and PROOF_AVAILABLE
         self.proof_steps: List = []
         self.decision_stack: List[Tuple[str, bool]] = []
+        # Track current parent for hierarchical proof construction
+        self._current_parent: Optional[ProofStep] = None
+        self._root_step: Optional[ProofStep] = None
 
     def solve(
         self, formula: CNFFormula, initial_assignment: Optional[Dict[str, bool]] = None
@@ -318,35 +321,38 @@ class DPLLSolver:
         self.decision_level = 0
         self.proof_steps = []  # Reset proof steps
         self.decision_stack = []
+        self._current_parent = None
+        self._root_step = None
 
         assignment = initial_assignment.copy() if initial_assignment else {}
 
         if self.enable_proof and PROOF_AVAILABLE:
-            self._add_proof_step(
+            # Create root step for entire SAT solving process
+            self._root_step = self._create_proof_step(
                 StepType.PREMISE,
                 "SAT Solving",
                 f"Find satisfying assignment for {len(formula.clauses)} clauses, "
                 f"{len(formula.variables)} variables",
                 confidence=1.0,
             )
+            # Set root as current parent for all subsequent steps
+            self._current_parent = self._root_step
 
         result, model = self._dpll(formula, assignment)
 
-        if self.enable_proof and PROOF_AVAILABLE:
-            if result == SATResult.SATISFIABLE:
-                self._add_proof_step(
-                    StepType.CONCLUSION,
-                    "SAT",
-                    f"Found satisfying assignment: {model}",
-                    confidence=1.0,
-                )
-            else:
-                self._add_proof_step(
-                    StepType.CONCLUSION,
-                    "UNSAT",
-                    "No satisfying assignment exists",
-                    confidence=1.0,
-                )
+        if self.enable_proof and PROOF_AVAILABLE and self._root_step:
+            # Add conclusion as child of root step
+            conclusion_step = self._create_proof_step(
+                StepType.CONCLUSION,
+                "SAT" if result == SATResult.SATISFIABLE else "UNSAT",
+                (
+                    f"Found satisfying assignment: {model}"
+                    if result == SATResult.SATISFIABLE
+                    else "No satisfying assignment exists"
+                ),
+                confidence=1.0,
+            )
+            self._root_step.add_subgoal(conclusion_step)
 
         logger.info(
             "DPLL solver finished",
@@ -384,6 +390,20 @@ class DPLLSolver:
         # Unit propagation
         unit_literals = simplified.get_unit_clauses()
         if unit_literals:
+            # Create parent step for unit propagation phase
+            unit_prop_parent = None
+            saved_parent = self._current_parent
+
+            if self.enable_proof and PROOF_AVAILABLE:
+                unit_prop_parent = self._add_proof_step(
+                    StepType.INFERENCE,
+                    "Unit Propagation Phase",
+                    f"Apply unit propagation to {len(unit_literals)} unit clauses",
+                    confidence=1.0,
+                )
+                if unit_prop_parent:
+                    self._current_parent = unit_prop_parent
+
             new_assignment = assignment.copy()
             for lit in unit_literals:
                 # Assign value to satisfy unit literal
@@ -400,6 +420,8 @@ class DPLLSolver:
                                 f"but unit clause requires {value}",
                                 confidence=1.0,
                             )
+                        # Restore parent
+                        self._current_parent = saved_parent
                         return SATResult.UNSATISFIABLE, None
                 else:
                     new_assignment[lit.variable] = value
@@ -407,10 +429,14 @@ class DPLLSolver:
                     if self.enable_proof and PROOF_AVAILABLE:
                         self._add_proof_step(
                             StepType.INFERENCE,
-                            "Unit Propagation",
+                            "Unit Clause Assignment",
                             f"Forced assignment: {lit.variable} = {value} (from unit clause)",
                             confidence=1.0,
                         )
+
+            # Restore parent before recursion
+            if self.enable_proof and PROOF_AVAILABLE:
+                self._current_parent = saved_parent
 
             # Recurse with propagated assignments
             return self._dpll(simplified, new_assignment)
@@ -418,6 +444,20 @@ class DPLLSolver:
         # Pure literal elimination
         pure_literals = simplified.get_pure_literals(assignment)
         if pure_literals:
+            # Create parent step for pure literal elimination phase
+            pure_lit_parent = None
+            saved_parent = self._current_parent
+
+            if self.enable_proof and PROOF_AVAILABLE:
+                pure_lit_parent = self._add_proof_step(
+                    StepType.INFERENCE,
+                    "Pure Literal Elimination Phase",
+                    f"Apply pure literal elimination to {len(pure_literals)} pure literals",
+                    confidence=1.0,
+                )
+                if pure_lit_parent:
+                    self._current_parent = pure_lit_parent
+
             new_assignment = assignment.copy()
             for lit in pure_literals:
                 # Assign value to satisfy pure literal
@@ -427,10 +467,14 @@ class DPLLSolver:
                 if self.enable_proof and PROOF_AVAILABLE:
                     self._add_proof_step(
                         StepType.INFERENCE,
-                        "Pure Literal Elimination",
+                        "Pure Literal Assignment",
                         f"Pure literal: {lit.variable} = {value} (appears only with one polarity)",
                         confidence=1.0,
                     )
+
+            # Restore parent before recursion
+            if self.enable_proof and PROOF_AVAILABLE:
+                self._current_parent = saved_parent
 
             # Recurse with pure literal assignments
             return self._dpll(simplified, new_assignment)
@@ -443,33 +487,60 @@ class DPLLSolver:
 
         self.decision_level += 1
 
-        # Try assigning True first
+        # Create parent step for branching
+        branch_parent = None
+        saved_parent = self._current_parent
+
         if self.enable_proof and PROOF_AVAILABLE:
-            self._add_proof_step(
+            branch_parent = self._add_proof_step(
                 StepType.ASSUMPTION,
-                "Branch",
-                f"Try {var} = True (decision level {self.decision_level})",
+                "Branching Decision",
+                f"Branch on {var} at decision level {self.decision_level}",
                 confidence=0.5,
             )
+            if branch_parent:
+                self._current_parent = branch_parent
+
+        # Try assigning True first
+        true_branch_step = None
+        if self.enable_proof and PROOF_AVAILABLE:
+            true_branch_step = self._add_proof_step(
+                StepType.ASSUMPTION,
+                "Try True Branch",
+                f"Assume {var} = True",
+                confidence=0.5,
+            )
+            if true_branch_step:
+                self._current_parent = true_branch_step
 
         self.decision_stack.append((var, True))
         new_assignment_true = assignment.copy()
         new_assignment_true[var] = True
         result, model = self._dpll(simplified, new_assignment_true)
 
+        # Restore parent after True branch
+        if self.enable_proof and PROOF_AVAILABLE:
+            self._current_parent = branch_parent if branch_parent else saved_parent
+
         if result == SATResult.SATISFIABLE:
             self.decision_stack.pop()
             self.decision_level -= 1
+            # Restore original parent
+            if self.enable_proof and PROOF_AVAILABLE:
+                self._current_parent = saved_parent
             return result, model
 
         # Backtrack: try assigning False
+        false_branch_step = None
         if self.enable_proof and PROOF_AVAILABLE:
-            self._add_proof_step(
+            false_branch_step = self._add_proof_step(
                 StepType.ASSUMPTION,
-                "Backtrack",
-                f"Try {var} = False (after {var} = True failed)",
+                "Try False Branch (Backtrack)",
+                f"Assume {var} = False (after True branch failed)",
                 confidence=0.5,
             )
+            if false_branch_step:
+                self._current_parent = false_branch_step
 
         self.decision_stack[-1] = (var, False)
         new_assignment_false = assignment.copy()
@@ -478,6 +549,11 @@ class DPLLSolver:
 
         self.decision_stack.pop()
         self.decision_level -= 1
+
+        # Restore original parent
+        if self.enable_proof and PROOF_AVAILABLE:
+            self._current_parent = saved_parent
+
         return result, model
 
     def _choose_variable(
@@ -509,12 +585,17 @@ class DPLLSolver:
         # Return variable with highest score
         return max(unassigned, key=lambda v: scores[v])
 
-    def _add_proof_step(
+    def _create_proof_step(
         self, step_type: "StepType", description: str, details: str, confidence: float
-    ) -> None:
-        """Add proof step (if enabled)"""
+    ) -> Optional[ProofStep]:
+        """
+        Create a ProofStep without adding to parent yet.
+
+        Returns:
+            ProofStep or None if proof disabled
+        """
         if not self.enable_proof or not PROOF_AVAILABLE:
-            return
+            return None
 
         try:
             step_id = f"sat_step_{len(self.proof_steps)}"
@@ -527,25 +608,61 @@ class DPLLSolver:
                 source_component="component_30_sat_solver",
             )
             self.proof_steps.append(step)
+            return step
         except Exception as e:
             logger.warning(f"Failed to create proof step: {e}")
+            return None
+
+    def _add_proof_step(
+        self, step_type: "StepType", description: str, details: str, confidence: float
+    ) -> Optional[ProofStep]:
+        """
+        Add proof step as child of current parent (hierarchical).
+
+        Returns:
+            Created ProofStep or None if proof disabled
+        """
+        if not self.enable_proof or not PROOF_AVAILABLE:
+            return None
+
+        step = self._create_proof_step(step_type, description, details, confidence)
+        if step and self._current_parent:
+            self._current_parent.add_subgoal(step)
+
+        return step
 
     def get_proof_tree(self, query: str = "SAT Solution") -> Optional["ProofTree"]:
         """
-        Create proof tree from collected steps.
+        Create proof tree from collected steps with hierarchical structure.
 
         Args:
             query: Query string for the proof tree
 
         Returns:
-            ProofTree: Proof tree
+            ProofTree: Hierarchical proof tree with root_step containing all nested steps
             None: If proof disabled or component_17 not available
         """
         if not self.enable_proof or not PROOF_AVAILABLE:
             return None
 
         try:
-            return ProofTree(query=query, root_steps=self.proof_steps)
+            # Use root_step if available (hierarchical), otherwise fall back to flat list
+            if self._root_step:
+                root_steps = [self._root_step]
+                logger.info(
+                    f"Creating hierarchical ProofTree: 1 root, "
+                    f"{len(self.proof_steps)} total steps"
+                )
+            else:
+                # Fallback: flat structure (shouldn't happen with new code)
+                root_steps = self.proof_steps
+                if len(root_steps) > 10:
+                    logger.warning(
+                        f"Creating flat ProofTree with {len(root_steps)} roots "
+                        f"(expected hierarchical structure)"
+                    )
+
+            return ProofTree(query=query, root_steps=root_steps)
         except Exception as e:
             logger.warning(f"Failed to create proof tree: {e}")
             return None

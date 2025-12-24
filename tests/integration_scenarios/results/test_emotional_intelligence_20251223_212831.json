@@ -1,0 +1,26 @@
+{
+  "scenario": "test_emotional_intelligence",
+  "timestamp": "2025-12-23T21:28:22.477934",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-23T21:28:22.479093",
+    "input_text": "\n        Ich bin so frustriert. Ich habe monatelang an diesem Projekt\n        gearbeitet, aber es funktioniert immer noch nicht richtig.\n        Jedes Mal, wenn ich denke, dass ich eine Loesung gefunden habe,\n        taucht ein neues Problem auf.\n\n        Ich weiss nicht, ob ich das schaffen kann. Vielleicht sollte ich\n        einfach aufgeben. Niemand scheint zu verstehen, wie schwer das ist.\n\n        Was denkst du darueber?\n        ",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-23T21:28:31.918944",
+    "response": "KaiResponse(text=\"Ich konnte den Schritt 'Beantworte Frage: 'Was denkst du darueber?...'' nicht ausführen.\", trace=[], answer_id=None, confidence=None, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.0
+  },
+  "metadata": {
+    "scenario_name": "test_emotional_intelligence",
+    "start_time": "2025-12-23T21:28:22.477934",
+    "end_time": "2025-12-23T21:28:31.918947"
+  }
+}

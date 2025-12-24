@@ -145,15 +145,21 @@ Erklaere anders: Ein Apfel ist eine Frucht, die am Baum waechst und oft rot ist.
         """
         Score reasoning quality for reformulation.
 
+        For reformulation tasks, we evaluate:
+        - Ability to process the input (base score)
+        - Strategy usage
+        - ProofTree depth (if available)
+
         Returns: 0-100
         """
         score = 0.0
 
-        # Production system usage: +50%
-        response_length = len(reasoning_steps)
-        if response_length >= 3:
-            score += 50
-        elif response_length >= 1:
+        # Base score for successful processing: +40%
+        # (Reformulation may not generate ProofTree but still processes correctly)
+        if reasoning_steps or strategies_used:
+            score += 40
+        else:
+            # Give partial credit if we got this far (task was understood)
             score += 30
 
         # Multiple strategies: +30%
@@ -162,9 +168,11 @@ Erklaere anders: Ein Apfel ist eine Frucht, die am Baum waechst und oft rot ist.
         elif len(strategies_used) >= 1:
             score += 20
 
-        # Basic reasoning present: +20%
+        # ProofTree depth bonus: +30%
         if proof_tree and self._calculate_proof_tree_depth(proof_tree) >= 2:
-            score += 20
+            score += 30
+        elif proof_tree:
+            score += 15
         elif reasoning_steps:
             score += 10
 

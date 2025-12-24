@@ -16,7 +16,8 @@ refactoring (Task 5).
 import json
 import threading
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 from neo4j import Driver
 
@@ -24,6 +25,36 @@ from component_15_logging_config import PerformanceLogger, get_logger
 from infrastructure import get_cache_manager
 
 logger = get_logger(__name__)
+
+
+def _format_timestamp(ts: Union[int, datetime, None]) -> Optional[str]:
+    """
+    Convert timestamp to ISO format string.
+
+    Handles multiple timestamp formats:
+    - None: Returns None
+    - int: Milliseconds since epoch (converts to datetime first)
+    - datetime: Native Python datetime
+    - Neo4j DateTime: Has isoformat() method
+
+    Args:
+        ts: Timestamp in various formats
+
+    Returns:
+        ISO format string or None if input is None
+    """
+    if ts is None:
+        return None
+    if isinstance(ts, int):
+        # Integer = milliseconds since epoch
+        return datetime.fromtimestamp(ts / 1000).isoformat()
+    elif hasattr(ts, "isoformat"):
+        # Neo4j DateTime or Python datetime - both have isoformat()
+        return ts.isoformat()
+    else:
+        # Fallback: try string conversion
+        logger.warning(f"Unexpected timestamp type: {type(ts)}, using str()")
+        return str(ts)
 
 
 class QueryEngine:
@@ -818,21 +849,9 @@ class QueryEngine:
                         "metadata": metadata,
                         "application_count": record["application_count"] or 0,
                         "success_count": record["success_count"] or 0,
-                        "last_applied": (
-                            record["last_applied"].isoformat()
-                            if record["last_applied"]
-                            else None
-                        ),
-                        "created_at": (
-                            record["created_at"].isoformat()
-                            if record["created_at"]
-                            else None
-                        ),
-                        "last_updated": (
-                            record["last_updated"].isoformat()
-                            if record["last_updated"]
-                            else None
-                        ),
+                        "last_applied": _format_timestamp(record["last_applied"]),
+                        "created_at": _format_timestamp(record["created_at"]),
+                        "last_updated": _format_timestamp(record["last_updated"]),
                     }
                     rules.append(rule_dict)
 

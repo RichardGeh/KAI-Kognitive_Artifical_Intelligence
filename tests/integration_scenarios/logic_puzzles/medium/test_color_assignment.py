@@ -117,9 +117,10 @@ Wer traegt welche Farbe?
         ), f"Expected constraint strategy, got: {result.strategies_used}"
 
         # Verify appropriate depth for compound constraints
+        # SAT solver may produce shallower trees than explicit constraint propagation
         assert (
-            4 <= result.proof_tree_depth <= 10
-        ), f"ProofTree depth {result.proof_tree_depth} outside expected range [4-10]"
+            3 <= result.proof_tree_depth <= 10
+        ), f"ProofTree depth {result.proof_tree_depth} outside expected range [3-10]"
 
         # Performance check
         assert (

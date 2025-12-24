@@ -7,6 +7,7 @@ Provides ScenarioResult dataclass and ScenarioTestBase class for structured test
 NO Unicode characters - ASCII only (see CLAUDE.md encoding rules).
 """
 
+import threading
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -189,11 +190,20 @@ class ScenarioTestBase:
             if hasattr(result.proof_tree, "to_dict"):
                 proof_tree_for_scoring = result.proof_tree.to_dict()
 
-            # Score reasoning quality
+            # Extract reasoning steps from proof tree FIRST (needed for scoring)
+            if result.proof_tree:
+                result.proof_tree_depth = self._calculate_proof_tree_depth(
+                    proof_tree_for_scoring
+                )
+                result.reasoning_steps = self._extract_reasoning_steps(
+                    proof_tree_for_scoring
+                )
+
+            # Score reasoning quality (use extracted reasoning_steps, not full_trace)
             result.reasoning_quality_score = self.score_reasoning_quality(
                 proof_tree_for_scoring,
                 result.strategies_used,
-                result.full_trace,
+                result.reasoning_steps if result.reasoning_steps else result.full_trace,
             )
 
             # Score confidence calibration
@@ -226,15 +236,6 @@ class ScenarioTestBase:
                 * self.CONFIDENCE_CALIBRATION_WEIGHT
                 + result.correctness_score * self.CORRECTNESS_WEIGHT
             )
-
-            # Analyze proof tree if available
-            if result.proof_tree:
-                result.proof_tree_depth = self._calculate_proof_tree_depth(
-                    proof_tree_for_scoring
-                )
-                result.reasoning_steps = self._extract_reasoning_steps(
-                    proof_tree_for_scoring
-                )
 
             # Identify weaknesses and suggestions
             result.identified_weaknesses = self._identify_weaknesses(result)
@@ -550,26 +551,34 @@ class ScenarioTestBase:
             if progress_reporter:
                 progress_reporter.update("Executing KAI worker", 30)
 
-            # Execute the worker (KAI uses process_query method)
-            kai_worker.process_query(input_text)
+            # Execute the worker in a separate thread with timeout
+            # This fixes the issue where process_query blocks and timeout is never checked
+            def run_query():
+                try:
+                    kai_worker.process_query(input_text)
+                except Exception as e:
+                    worker_result["error"] = f"process_query exception: {e}"
 
-            # Wait for completion with timeout
-            start_time = time.time()
-            timeout_seconds = self.TIMEOUT_SECONDS
+            thread = threading.Thread(target=run_query, daemon=True)
+            thread.start()
+            thread.join(timeout=self.TIMEOUT_SECONDS)
 
-            while not worker_result["completed"]:
-                elapsed = time.time() - start_time
-                if elapsed > timeout_seconds:
-                    raise TimeoutError(
-                        f"KAI worker exceeded timeout of {timeout_seconds}s"
-                    )
+            if thread.is_alive():
+                # Thread didn't complete in time - the daemon thread will be
+                # terminated when the main process exits
+                raise TimeoutError(
+                    f"KAI worker exceeded timeout of {self.TIMEOUT_SECONDS}s"
+                )
 
-                # Check for errors
+            # Check if completed via signal
+            if not worker_result["completed"]:
+                # process_query returned but no finished signal - check for errors
                 if worker_result["error"]:
                     raise RuntimeError(worker_result["error"])
-
-                # Brief sleep to avoid busy waiting
-                time.sleep(0.1)
+                else:
+                    raise RuntimeError(
+                        "process_query completed but finished signal not emitted"
+                    )
 
             if progress_reporter:
                 progress_reporter.update("KAI worker completed", 70)

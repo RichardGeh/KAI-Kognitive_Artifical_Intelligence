@@ -487,6 +487,30 @@ class QuestionHeuristicsExtractor:
                 )
             ]
 
+        # Pattern 3: "Was mag X?" / "Was liebt X?" / "Was moechte X?" (preference questions)
+        match_preference = re.match(
+            r"^\s*was\s+(?:mag|liebt|moechte|bevorzugt)\s+(?:ein|eine|der|die|das|den|dem|des)?\s*(.+?)\??\s*$",
+            text,
+            re.IGNORECASE,
+        )
+        if match_preference:
+            topic_str_raw = match_preference.group(1).strip()
+            cleaned_topic = self.text_normalizer.clean_entity(topic_str_raw)
+            confidence = 0.90 if text.rstrip().endswith("?") else 0.85
+            return [
+                create_meaning_point(
+                    category=MeaningPointCategory.QUESTION,
+                    cue="heuristic_was_mag_question",
+                    text_span=text,
+                    confidence=confidence,
+                    arguments={
+                        "topic": cleaned_topic,
+                        "question_type": "preference",
+                        "relation_hint": "ASSOCIATED_WITH",
+                    },
+                )
+            ]
+
         # Pattern 3: "Was kann X machen?" / "Was kann X tun?"
         match_kann_machen = re.match(
             r"^\s*was\s+kann\s+(?:ein|eine|der|die|das|den|dem|des)?\s*(.+?)\s+(?:machen|tun)\??\s*$",

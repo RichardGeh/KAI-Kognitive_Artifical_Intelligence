@@ -1,0 +1,26 @@
+{
+  "scenario": "test_synonym_consistency",
+  "timestamp": "2025-12-24T13:21:04.714853",
+  "input": {
+    "type": "input",
+    "timestamp": "2025-12-24T13:21:04.715788",
+    "input_text": "Lerne: Ein Auto ist ein Fahrzeug mit vier Raedern.\nLerne: Ein Wagen ist ein Fahrzeug.\nLerne: Ein Fahrzeug ist ein Transportmittel.\nWas ist ein Auto?",
+    "context": {}
+  },
+  "preprocessing": null,
+  "strategy_selection": null,
+  "reasoning_steps": [],
+  "proof_tree_evolution": [],
+  "memory_updates": [],
+  "final_response": {
+    "type": "final_response",
+    "timestamp": "2025-12-24T13:21:04.860109",
+    "response": "KaiResponse(text=\"Ich konnte den Schritt 'Führe Befehl aus: 'Lerne: Ein Wagen ist ein Fahrzeug....'' nicht ausführen.\", trace=[], answer_id=None, confidence=None, strategy=None, evaluation=None, proof_tree=None)",
+    "confidence": 0.0
+  },
+  "metadata": {
+    "scenario_name": "test_synonym_consistency",
+    "start_time": "2025-12-24T13:21:04.714853",
+    "end_time": "2025-12-24T13:21:04.860113"
+  }
+}

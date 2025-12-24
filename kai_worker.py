@@ -74,6 +74,136 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Entity extraction exclusion list for logic puzzle heuristic
+# Filters out domain nouns, colors, articles, and common puzzle words
+# that should not be treated as puzzle entities.
+# Synchronized with kai_strategy_dispatcher.py:1181-1216
+ENTITY_EXCLUSIONS = {
+    # Articles
+    "Der",
+    "Die",
+    "Das",
+    "Ein",
+    "Eine",
+    "Einen",
+    # Domain nouns (both capitalized and lowercase)
+    "Farbe",
+    "Farben",
+    "farbe",
+    "farben",
+    "Beruf",
+    "Berufe",
+    "beruf",
+    "berufe",
+    "Person",
+    "Personen",
+    "person",
+    "personen",
+    # Colors (common in color assignment puzzles) - BOTH cases
+    "Rot",
+    "rot",
+    "Blau",
+    "blau",
+    "Gruen",
+    "gruen",
+    "Gelb",
+    "gelb",
+    "Schwarz",
+    "schwarz",
+    "Weiss",
+    "weiss",
+    "Grau",
+    "grau",
+    "Orange",
+    "orange",
+    "Lila",
+    "lila",
+    "Rosa",
+    "rosa",
+    "Braun",
+    "braun",
+    # German color adjective declined forms (neuter/accusative) - FIX for test_negative_constraints
+    "Gelbes",
+    "gelbes",
+    "Rotes",
+    "rotes",
+    "Blaues",
+    "blaues",
+    "Gruenes",
+    "gruenes",
+    "Weisses",
+    "weisses",
+    "Schwarzes",
+    "schwarzes",
+    # Question words and common puzzle vocabulary
+    "Vier",
+    "Fuenf",
+    "Drei",
+    "Genau",
+    "Wer",
+    "Was",
+    "Wie",
+    "Welche",
+    # German indefinite pronouns - FIX for test_negative_constraints
+    "Jede",
+    "jede",
+    "Jeder",
+    "jeder",
+    "Jedes",
+    "jedes",
+    "Alle",
+    "alle",
+    "Keine",
+    "keine",
+    "Keiner",
+    "keiner",
+    # German command verbs (imperatives) - FIX for test_negative_constraints
+    "Finde",
+    "finde",
+    "Gib",
+    "gib",
+    "Nenne",
+    "nenne",
+    "Bestimme",
+    "bestimme",
+    "Zeige",
+    "zeige",
+    "Erklaere",
+    "erklaere",
+    "Berechne",
+    "berechne",
+    # Dialogue turn labels (meta-words, not entities)
+    "Turn",
+    "Step",
+    "Schritt",
+    "Runde",
+    "Punkt",
+    "Teil",
+    # Arithmetic puzzle nouns (German nouns start capitalized but are not entities)
+    "Alter",
+    "Jahre",
+    "Jahr",
+    "Summe",
+    "Differenz",
+    "Produkt",
+    "Quotient",
+    "Hinweise",
+    "Hinweis",
+    "Frage",
+    "Antwort",
+    "Loesung",
+    # Spatial puzzle nouns
+    "Tisch",
+    "Reihe",
+    "Platz",
+    "Position",
+    "Sitzordnung",
+    "Uhrzeigersinn",
+    # Punctuation artifacts - FIX for regex parsing errors
+    "):",
+    "(:",
+}
+
 
 class KaiSignals(QObject):
     """
@@ -249,6 +379,13 @@ class KaiWorker(QObject):
 
             logger.info("Production System Engine aktiviert (mit Neo4j Persistierung)")
 
+            # PHASE 10: Pattern Discovery Engine (Part 3: Clustering & Template Induction)
+            from component_61_pattern_discovery import PatternDiscoveryEngine
+
+            self.pattern_discovery = PatternDiscoveryEngine(self.netzwerk)
+            self._last_discovery_count = 0  # Track when to trigger discovery
+            logger.info("Pattern Discovery Engine aktiviert (clustering + LGG)")
+
             self.is_initialized_successfully = True
             logger.info("KAI Worker & alle Subsysteme erfolgreich initialisiert.")
 
@@ -297,10 +434,11 @@ class KaiWorker(QObject):
         Haupteinstiegspunkt für Benutzereingaben (läuft im Worker-Thread).
 
         Orchestriert den gesamten Query-Processing-Flow:
-        1. Prüfe auf aktiven Kontext (Multi-Turn-Dialog)
-        2. Extrahiere Intent via MeaningPointExtractor
-        3. Erstelle Plan via GoalPlanner
-        4. Führe Plan aus und emittiere Ergebnis
+        1. Speichere Utterance für Pattern Discovery (GANZ AM ANFANG)
+        2. Prüfe auf aktiven Kontext (Multi-Turn-Dialog)
+        3. Extrahiere Intent via MeaningPointExtractor
+        4. Erstelle Plan via GoalPlanner
+        5. Führe Plan aus und emittiere Ergebnis
 
         Args:
             query: Die Benutzereingabe
@@ -313,6 +451,26 @@ class KaiWorker(QObject):
                 )
                 self.signals.finished.emit(KaiResponse(text=error_msg))
                 return
+
+            # ===================================================================
+            # PHASE: UTTERANCE STORAGE (Runs FIRST, before any processing)
+            # ===================================================================
+            # Store EVERY user input for pattern discovery system
+            # CRITICAL: This runs BEFORE goal planning so we capture raw input
+            try:
+                utterance_id = self._store_utterance(query)
+                logger.debug(f"Utterance stored: {utterance_id[:8]}...")
+
+                # PHASE 10: Trigger periodic pattern discovery (Part 3)
+                # Only call discovery function if threshold might be reached (optimization)
+                utterance_count = self.netzwerk.count_utterances(archived=False)
+                if utterance_count >= self._last_discovery_count + 50:
+                    self._periodic_pattern_discovery()
+
+            except Exception as e:
+                # Non-critical: Continue processing even if storage fails
+                logger.warning(f"Failed to store utterance: {e}")
+                utterance_id = None
 
             # Prüfe auf aktiven Kontext (Multi-Turn-Dialog)
             if self.context.is_active():
@@ -422,55 +580,65 @@ class KaiWorker(QObject):
                         from component_45_logic_puzzle_solver import LogicPuzzleSolver
 
                         entities = []
+                        ner_entities = set()
 
                         # PRIMÄR: Nutze spaCy NER für PERSON entities
+                        # German model uses "PER" instead of "PERSON"
                         try:
                             if self.preprocessor:
                                 doc = self.preprocessor.nlp(cleaned_query)
                                 person_entities = [
                                     ent.text
                                     for ent in doc.ents
-                                    if ent.label_ == "PERSON"
+                                    if ent.label_ in ("PERSON", "PER")
+                                    # FIX: Filter NER entities through ENTITY_EXCLUSIONS
+                                    and ent.text not in ENTITY_EXCLUSIONS
+                                    # FIX: Filter punctuation artifacts from NER
+                                    and ent.text.isalpha()
                                 ]
                                 if person_entities:
-                                    entities = list(
-                                        set(person_entities)
-                                    )  # Dedupliziere
+                                    ner_entities = set(person_entities)
                                     logger.info(
-                                        f"[LOGIC-PUZZLE] spaCy NER: {len(entities)} PERSON entities gefunden: {entities}"
+                                        f"[LOGIC-PUZZLE] spaCy NER: {len(ner_entities)} PER entities gefunden: {list(ner_entities)}"
                                     )
                         except Exception as e:
                             logger.warning(
                                 f"[LOGIC-PUZZLE] spaCy NER fehlgeschlagen: {e}"
                             )
 
-                        # SEKUNDÄR: Fallback zu Kapitalisierungs-Heuristik mit Neo4j Filter
-                        if not entities:
-                            logger.info(
-                                "[LOGIC-PUZZLE] Kein spaCy NER, verwende Kapitalisierungs-Heuristik"
-                            )
+                        # SEKUNDÄR: Kapitalisierungs-Heuristik (IMMER anwenden als Ergänzung)
+                        # weil spaCy NER nicht alle Namen erkennt
+                        logger.debug(
+                            "[LOGIC-PUZZLE] Ergänze mit Kapitalisierungs-Heuristik"
+                        )
 
-                            # Extrahiere kapitalisierte Wörter
-                            words = re.findall(r"\b([A-Z][a-z]+)\b", cleaned_query)
-                            word_counts = Counter(words)
+                        # Extrahiere kapitalisierte Wörter
+                        words = re.findall(r"\b([A-Z][a-z]+)\b", cleaned_query)
+                        word_counts = Counter(words)
 
-                            # Hole CommonWords aus Neo4j (dynamisch!)
-                            common_words_set = self.netzwerk.get_common_words()
-                            logger.debug(
-                                f"[LOGIC-PUZZLE] {len(common_words_set)} CommonWords aus Neo4j geladen"
-                            )
+                        # Hole CommonWords aus Neo4j (dynamisch!)
+                        common_words_set = self.netzwerk.get_common_words()
+                        logger.debug(
+                            f"[LOGIC-PUZZLE] {len(common_words_set)} CommonWords aus Neo4j geladen"
+                        )
 
-                            # Filtere: Nur Wörter die mind. 2x vorkommen UND nicht in CommonWords
-                            entities = [
-                                w
-                                for w, count in word_counts.items()
-                                if count >= 2 and w.lower() not in common_words_set
-                            ]
+                        # IMPROVED: Erkenne kurze Namen (3-6 chars) auch mit count=1
+                        # Längere Wörter brauchen count >= 2 um False Positives zu vermeiden
+                        heuristic_entities = []
+                        for w, count in word_counts.items():
+                            if w in ENTITY_EXCLUSIONS:
+                                continue
+                            if w.lower() in common_words_set:
+                                continue
+                            # Short names (3-6 chars) - likely proper names
+                            if 3 <= len(w) <= 6 and count >= 1:
+                                heuristic_entities.append(w)
+                            # Longer words need count >= 2
+                            elif count >= 2:
+                                heuristic_entities.append(w)
 
-                            if entities:
-                                logger.info(
-                                    f"[LOGIC-PUZZLE] Heuristik: {len(entities)} Kandidaten gefunden: {entities}"
-                                )
+                        # Kombiniere NER + Heuristik
+                        entities = list(ner_entities | set(heuristic_entities))
 
                         if not entities:
                             logger.warning(
@@ -572,6 +740,28 @@ class KaiWorker(QObject):
                     confidence=0.9,
                     arguments={"orchestrated": True, "segment_count": len(segments)},
                 )
+
+                # FIX: Store puzzle metadata in intent arguments if this is a logic puzzle
+                # This allows question answering strategy to route to logic puzzle solver
+                if orchestration_result.get("is_logic_puzzle"):
+                    # Extract entities and conditions even if direct solving wasn't attempted
+                    question_segments = [s for s in segments if s.is_question()]
+                    explanation_segments = [s for s in segments if s.is_explanation()]
+
+                    puzzle_metadata = {
+                        "type": "logic_puzzle",
+                        "puzzle_type": orchestration_result.get("puzzle_type"),
+                        "segments": segments,
+                        "question": (
+                            question_segments[-1].text if question_segments else ""
+                        ),
+                        "conditions": "\n".join(s.text for s in explanation_segments),
+                        "orchestration_result": orchestration_result,
+                    }
+                    dummy_intent.arguments["puzzle_metadata"] = puzzle_metadata
+                    logger.info(
+                        f"[ORCHESTRATION] Stored puzzle metadata for question answering strategy"
+                    )
 
                 # Führe orchestrierten Plan aus
                 # WICHTIG: Lernen passiert ZUERST, dann Fragen
@@ -693,6 +883,21 @@ class KaiWorker(QObject):
             self.signals.clear_goals.emit()
             self.signals.set_main_goal.emit(plan.description)
             knowledge_context = {"intent": intent}
+
+            # FIX: Propagate puzzle metadata and orchestration_result from intent to knowledge_context
+            # This allows sub-goal strategies to detect logic puzzles and route to solver
+            if "puzzle_metadata" in intent.arguments:
+                puzzle_metadata = intent.arguments["puzzle_metadata"]
+                knowledge_context["puzzle_metadata"] = puzzle_metadata
+                # Also propagate full orchestration_result if available
+                if "orchestration_result" in puzzle_metadata:
+                    knowledge_context["orchestration_result"] = puzzle_metadata[
+                        "orchestration_result"
+                    ]
+                logger.debug(
+                    f"[EXECUTE_PLAN] Propagated puzzle_metadata and orchestration_result to knowledge_context"
+                )
+
             final_response_text = "Plan ausgeführt, aber keine Antwort formuliert."
             proof_tree = None
             final_confidence = 0.8
@@ -848,6 +1053,224 @@ class KaiWorker(QObject):
             return KaiResponse(
                 text="[ERROR] Ein unerwarteter Fehler ist während der Ausführung aufgetreten. Bitte versuche es erneut."
             )
+
+    # ========================================================================
+    # UTTERANCE STORAGE (Pattern Discovery System - Part 2)
+    # ========================================================================
+
+    def _store_utterance(self, text: str) -> str:
+        """
+        Stores user input as Utterance with Tokens for pattern discovery.
+
+        Uses batch token creation for 10+ tokens (5-10x speedup on long sentences).
+        All operations use parameterized queries for security.
+
+        Args:
+            text: User input text
+
+        Returns:
+            Utterance ID (UUID)
+
+        Raises:
+            DatabaseException: If storage fails
+        """
+        # 1. Create embedding (uses component_11 with caching)
+        embedding = self.embedding_service.get_embedding(text)
+
+        # 2. Create Utterance node (parameterized query)
+        utterance_id = self.netzwerk.create_utterance(
+            text=text,
+            embedding=(
+                embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
+            ),
+        )
+
+        # 3. Tokenization with spaCy (uses component_6)
+        doc = self.preprocessor.process(text)
+
+        # 4. BATCH TOKEN CREATION (critical for long sentences)
+        # Instead of N queries, use UNWIND for single query
+        if len(doc) >= 10:
+            # Batch mode: 10+ tokens -> UNWIND
+            self._batch_create_tokens(utterance_id, doc)
+        else:
+            # Sequential mode: <10 tokens -> individual queries
+            for idx, token in enumerate(doc):
+                self.netzwerk.create_token(
+                    surface=token.text,
+                    lemma=token.lemma_,
+                    pos=token.pos_,
+                    utterance_id=utterance_id,
+                    idx=idx,
+                )
+
+        return utterance_id
+
+    def _batch_create_tokens(self, utterance_id: str, doc):
+        """
+        Batch creates tokens using UNWIND (Neo4j best practice).
+
+        10x faster than N individual CREATE queries.
+        Uses transaction for atomicity (all tokens or none).
+        Creates NEXT chain in single query.
+
+        Args:
+            utterance_id: UUID of parent utterance
+            doc: spaCy Doc object with tokens
+
+        Raises:
+            DatabaseException: If batch creation fails
+        """
+        import uuid as uuid_module
+
+        tokens_data = [
+            {
+                "id": str(uuid_module.uuid4()),
+                "surface": token.text,
+                "lemma": token.lemma_,
+                "pos": token.pos_,
+                "idx": idx,
+            }
+            for idx, token in enumerate(doc)
+        ]
+
+        query = """
+        MATCH (u:Utterance {id: $utterance_id})
+        UNWIND $tokens AS tok
+        CREATE (t:Token {
+            id: tok.id,
+            surface: tok.surface,
+            lemma: tok.lemma,
+            pos: tok.pos,
+            idx: tok.idx
+        })
+        CREATE (u)-[:HAS_TOKEN {idx: tok.idx}]->(t)
+        WITH t, tok
+        ORDER BY tok.idx
+        WITH collect(t) AS tokens
+        UNWIND range(0, size(tokens) - 2) AS i
+        WITH tokens[i] AS curr, tokens[i+1] AS next
+        CREATE (curr)-[:NEXT]->(next)
+        RETURN count(*) AS created_count
+        """
+
+        try:
+            with self.netzwerk.driver.session(database="neo4j") as session:
+                with session.begin_transaction() as tx:
+                    try:
+                        result = tx.run(
+                            query, {"utterance_id": utterance_id, "tokens": tokens_data}
+                        )
+                        record = result.single()
+                        count = record["created_count"] if record else 0
+                        tx.commit()
+                        logger.debug(
+                            f"Batch created {len(tokens_data)} tokens (NEXT chains: {count})",
+                            extra={
+                                "utterance_id": utterance_id[:8],
+                                "token_count": len(tokens_data),
+                            },
+                        )
+                    except Exception as inner_e:
+                        tx.rollback()
+                        raise inner_e
+        except Exception as e:
+            from kai_exceptions import DatabaseException, wrap_exception
+
+            raise wrap_exception(
+                e,
+                DatabaseException,
+                "Failed to batch create tokens",
+                utterance_id=utterance_id,
+                token_count=len(tokens_data),
+            )
+
+    def _periodic_pattern_discovery(self):
+        """
+        Trigger pattern discovery every 50 new utterances (Part 3: Clustering & Induction).
+
+        Algorithm:
+        1. Count non-archived utterances
+        2. Check if count >= last_count + 50
+        3. If yes:
+           a. Cluster utterances by embedding similarity
+           b. Induce template from each cluster via LGG
+           c. Create Pattern/PatternItem/Slot nodes
+           d. Update last_count tracker
+
+        Called after each utterance storage to check if threshold reached.
+        Non-blocking: Runs in worker thread, doesn't affect query processing.
+        """
+        try:
+            # 1. Count non-archived utterances
+            utterance_count = self.netzwerk.count_utterances(archived=False)
+
+            # 2. Check if we've accumulated enough new utterances
+            threshold = 50  # Configurable: Trigger every N utterances
+            if utterance_count >= self._last_discovery_count + threshold:
+                logger.info(
+                    f"Pattern Discovery triggered: "
+                    f"{utterance_count} utterances (threshold={threshold})"
+                )
+
+                # 3. Cluster utterances by embedding similarity
+                clusters = self.pattern_discovery.cluster_utterances(
+                    min_cluster_size=3,  # At least 3 examples per pattern
+                    similarity_threshold=0.85,  # High similarity = specific patterns
+                )
+
+                if not clusters:
+                    logger.info("Pattern Discovery: No clusters found")
+                    self._last_discovery_count = utterance_count
+                    return
+
+                logger.info(f"Pattern Discovery: Found {len(clusters)} clusters")
+
+                # 4. Induce template from each cluster
+                patterns_created = 0
+                for cluster in clusters:
+                    try:
+                        pattern_id = (
+                            self.pattern_discovery.induce_template_from_cluster(cluster)
+                        )
+                        patterns_created += 1
+                        logger.debug(
+                            f"Pattern created from cluster: {pattern_id[:8]} "
+                            f"(size={cluster['size']})"
+                        )
+                    except Exception as cluster_e:
+                        # Log but don't fail entire discovery if one cluster fails
+                        logger.warning(
+                            f"Failed to create pattern from cluster "
+                            f"{cluster.get('cluster_id')}: {cluster_e}"
+                        )
+
+                logger.info(
+                    f"Pattern Discovery complete: "
+                    f"{patterns_created} new patterns created from {len(clusters)} clusters"
+                )
+
+                # 5. Update tracker
+                self._last_discovery_count = utterance_count
+
+        except Exception as e:
+            # Pattern discovery is non-critical - log error but don't crash
+            logger.error(f"Pattern discovery failed: {e}", exc_info=True)
+
+    def _cleanup_old_utterances(self):
+        """
+        Archiviert Utterances älter als 30 Tage.
+
+        Called periodically (e.g., daily) to prevent unbounded graph growth.
+        Archived utterances are marked but not deleted (statistics still available).
+        """
+        try:
+            archived_count = self.netzwerk.archive_old_utterances(days_threshold=30)
+            logger.info(
+                f"Archived {archived_count} old utterances (older than 30 days)"
+            )
+        except Exception as e:
+            logger.error(f"Failed to archive old utterances: {e}", exc_info=True)
 
     # ========================================================================
     # PATTERN RECOGNITION HELPERS

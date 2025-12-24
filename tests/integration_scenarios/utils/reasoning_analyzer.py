@@ -193,9 +193,13 @@ class ReasoningAnalyzer:
                         strategies.append("abductive_reasoning")
                     elif "probabilistic" in component or "component_16" in component:
                         strategies.append("probabilistic_reasoning")
+                    elif "direct_fact_lookup" in component:
+                        strategies.append("knowledge_retrieval")
+                    elif "knowledge" in component or "netzwerk" in component:
+                        strategies.append("knowledge_retrieval")
 
                 # NEW: Check rule_name (ProofStep field)
-                if "rule_name" in node:
+                if "rule_name" in node and node["rule_name"]:
                     rule = node["rule_name"].lower()
                     if "sat" in rule:
                         strategies.append("sat")

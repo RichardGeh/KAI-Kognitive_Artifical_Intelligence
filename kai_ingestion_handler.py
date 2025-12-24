@@ -66,6 +66,10 @@ class KaiIngestionHandler:
         # Word Usage Tracking
         self.text_fragmenter = TextFragmenter(linguistic_preprocessor=preprocessor)
 
+        # Pronoun resolution context: tracks last mentioned noun for coreference
+        # This enables resolving "es/er/sie" to the previously mentioned noun
+        self._last_mentioned_noun: Optional[str] = None
+
     def ingest_text(self, text: str) -> Dict[str, int]:
         """
         PHASE 6.2: Intelligente, Vektor-gesteuerte Ingestion-Pipeline.
@@ -626,6 +630,8 @@ class KaiIngestionHandler:
                         logger.debug(f"  -> Mit Episode {episode_id[:8]} verknüpft")
 
                 if created:
+                    # Update coreference context: remember subject for pronoun resolution
+                    self._last_mentioned_noun = subject
                     logger.info(
                         f"  -> GESPEICHERT: ({subject})-[{rule['relation_type']}]->({obj})"
                     )
@@ -742,7 +748,21 @@ class KaiIngestionHandler:
                     "PROPN",
                 ]:
                     subject = token.lemma_.lower()
+                    # Update coreference context with this noun
+                    self._last_mentioned_noun = subject
                     logger.debug(f"  [VERB-EXTRACTION] Subject gefunden: {subject}")
+
+                # NEW: Handle pronouns as subject (coreference resolution)
+                # Resolve "es/er/sie" to the last mentioned noun
+                elif (
+                    token.dep_ in ["sb", "nsubj", "nsubjpass"] and token.pos_ == "PRON"
+                ):
+                    pronoun = token.text.lower()
+                    if pronoun in ["es", "er", "sie"] and self._last_mentioned_noun:
+                        subject = self._last_mentioned_noun
+                        logger.debug(
+                            f"  [VERB-EXTRACTION] Pronoun '{pronoun}' resolved to: {subject}"
+                        )
 
                 # Finde Haupt-Verb (nicht sein/haben/werden)
                 if token.pos_ == "VERB" and token.dep_ in ["ROOT", "oc"]:
