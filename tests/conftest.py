@@ -525,3 +525,50 @@ def preprocessor_mock():
         mock_doc.__len__ = lambda self: 0
         mock.return_value = mock_doc
         return mock
+
+
+# ============================================================================
+# NEO4J MAINTENANCE FIXTURES
+# ============================================================================
+
+
+@pytest.fixture(scope="function")
+def neo4j_cleanup(netzwerk_session):
+    """
+    Cleanup Neo4j test data before and after each test.
+
+    Uses the neo4j_maintenance module for efficient batch deletion.
+    Only cleans up nodes with 'test_' prefix to preserve real data.
+    """
+    from scripts.neo4j_maintenance import clear_test_data
+
+    # Cleanup before test
+    clear_test_data(netzwerk_session.driver, prefix="test_")
+
+    yield
+
+    # Cleanup after test
+    clear_test_data(netzwerk_session.driver, prefix="test_")
+
+
+@pytest.fixture(scope="session")
+def neo4j_health_check():
+    """
+    Verify Neo4j connection at session start.
+
+    If connection fails, provides helpful error message about starting
+    Neo4j Desktop manually.
+    """
+    from scripts.neo4j_maintenance import check_connection
+
+    if not check_connection():
+        pytest.fail(
+            "Neo4j is not responding!\n"
+            "Please ensure Neo4j Desktop is running and the database is started.\n"
+            "Manual steps:\n"
+            "  1. Open Neo4j Desktop\n"
+            "  2. Start the database\n"
+            "  3. Re-run tests"
+        )
+
+    return True
